@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import sys
+print(f'sys.path: {sys.path}')
+sys.path = ["/host_fs/mnt/raid10/hanjing/thesis/horovod/"] + sys.path
+print(f'sys.path: {sys.path}')
 
 from horovod.run.runner import run_commandline
 

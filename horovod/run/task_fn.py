@@ -63,5 +63,7 @@ if __name__ == '__main__':
     index = codec.loads_base64(sys.argv[1])
     driver_addresses = codec.loads_base64(sys.argv[2])
     settings = codec.loads_base64(sys.argv[3])
+    print(f'index: {index}, driver_addresses: {driver_addresses},settings:{settings.key}')
+
 
     _task_fn(index, driver_addresses, settings)

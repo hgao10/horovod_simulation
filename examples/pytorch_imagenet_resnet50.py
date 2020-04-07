@@ -1,3 +1,8 @@
+# sudo docker run -it --name horovod-py3.6 --mount type=bind,source=/,target=/host_fs --network dtest --ip 172.28.0.4 horovod/horovod:0.19.1-tf2.1.0-torch1.4.0-mxnet1.6.0-py3.6-cpu
+# sudo docker run -it --name horovod-py3.6-worker3 --cap-add=NET_ADMIN --mount type=bind,source=/,target=/host_fs --network dtest --ip 172.28.0.6 horovod/horovod:0.19.1-tf2.1.0-torch1.4.0-mxnet1.6.0-py3.6-cpu
+# sudo docker run -it --name horovod-py3.6-worker3 --cap-add=NET_ADMIN --mount type=bind,source=/,target=/host_fs --mount type=bind,source=/mnt/raid10/hanjing/thesis/horovod_docker/.ssh, target=/root/.ssh --network dtest --ip 172.28.0.6 horovod/horovod:0.19.1-tf2.1.0-torch1.4.0-mxnet1.6.0-py3.6-cpu
+
+# horovodrun -np 1 -H localhost:1 python /host_fs/mnt/raid10/hanjing/thesis/horovod/examples/pytorch_imagenet_resnet50.py
 from __future__ import print_function
 
 import torch
@@ -14,6 +19,10 @@ import math
 from tqdm import tqdm
 from distutils.version import LooseVersion
 
+import sys
+print(f'sys.path: {sys.path}')
+print(f'torch: {torch}')
+print(f'hvd: {hvd}')
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Example',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -221,9 +230,17 @@ if __name__ == '__main__':
             mp._supports_context and 'forkserver' in mp.get_all_start_methods()):
         kwargs['multiprocessing_context'] = 'forkserver'
 
-    train_dataset = \
-        datasets.ImageFolder(args.train_dir,
-                             transform=transforms.Compose([
+    # train_dataset = \
+    #     datasets.ImageFolder(args.train_dir,
+    #                          transform=transforms.Compose([
+    #                              transforms.RandomResizedCrop(224),
+    #                              transforms.RandomHorizontalFlip(),
+    #                              transforms.ToTensor(),
+    #                              transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                                                   std=[0.229, 0.224, 0.225])
+    #                          ]))
+    train_dataset = datasets.CIFAR10(root='/host_fs/mnt/raid10/hanjing/thesis/horovod/examples/cifar10_data', train=True,
+                                                download=True, transform=transforms.Compose([
                                  transforms.RandomResizedCrop(224),
                                  transforms.RandomHorizontalFlip(),
                                  transforms.ToTensor(),
@@ -238,9 +255,17 @@ if __name__ == '__main__':
         train_dataset, batch_size=allreduce_batch_size,
         sampler=train_sampler, **kwargs)
 
-    val_dataset = \
-        datasets.ImageFolder(args.val_dir,
-                             transform=transforms.Compose([
+    # val_dataset = \
+    #     datasets.ImageFolder(args.val_dir,
+    #                          transform=transforms.Compose([
+    #                              transforms.Resize(256),
+    #                              transforms.CenterCrop(224),
+    #                              transforms.ToTensor(),
+    #                              transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                                                   std=[0.229, 0.224, 0.225])
+    #                          ]))
+    val_dataset = datasets.CIFAR10(root='/host_fs/mnt/raid10/hanjing/thesis/horovod/examples/cifar10_data', train=False,
+                                               download=True, transform=transforms.Compose([
                                  transforms.Resize(256),
                                  transforms.CenterCrop(224),
                                  transforms.ToTensor(),

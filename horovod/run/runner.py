@@ -443,7 +443,7 @@ def parse_args():
                                        'was built with MPI support.')
 
     args = parser.parse_args()
-
+    
     if args.config_file:
         with open(args.config_file, 'r') as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
@@ -567,7 +567,8 @@ def _run(args):
             args.hosts = 'localhost:{np}'.format(np=args.np)
 
     all_host_names = parse_host_names(args.hosts)
-
+    print(f'all_host_names: {all_host_names}')
+    print(f'args.nics: {args.nics}')
     nics_set = set(args.nics.split(',')) if args.nics else None
 
     # horovodrun has to finish all the checks before this timeout runs out.
@@ -713,6 +714,7 @@ def _launch_job(args, remote_host_names, settings, nics, command):
 
 def run_commandline():
     args = parse_args()
+    print(f'parsed args: {args.nics}')  
     args.run_func = None
     _run(args)
 
@@ -777,7 +779,7 @@ def run(
     :return: Return a list which contains values return by all Horovod processes.
              The index of the list corresponds to the rank of each Horovod process.
     """
-
+    print(f'Hello i am running from run')
     if kwargs is None:
         kwargs = {}
 
