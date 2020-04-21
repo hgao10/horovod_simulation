@@ -10,6 +10,9 @@ horovod.egg-info
 dist
 build
 docs/_build
+bin/*
+examples/cifar10_data/*
+core
 
 env
 venv/

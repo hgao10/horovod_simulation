@@ -19,6 +19,8 @@ import math
 from tqdm import tqdm
 from distutils.version import LooseVersion
 
+import time
+
 import sys
 print(f'sys.path: {sys.path}')
 print(f'torch: {torch}')
@@ -65,7 +67,7 @@ parser.add_argument('--seed', type=int, default=42,
                     help='random seed')
 
 
-def train(epoch):
+def train(epoch, backward_hook, tracker):
     model.train()
     train_sampler.set_epoch(epoch)
     train_loss = Metric('train_loss')
@@ -82,20 +84,25 @@ def train(epoch):
             optimizer.zero_grad()
             # Split data into sub-batches of size batch_size
             for i in range(0, len(data), args.batch_size):
+                print(f"SUB BATCH {i}")
                 data_batch = data[i:i + args.batch_size]
                 target_batch = target[i:i + args.batch_size]
                 output = model(data_batch)
                 train_accuracy.update(accuracy(output, target_batch))
                 loss = F.cross_entropy(output, target_batch)
+                if batch_idx == 0:
+                    backward_hook(model)
                 train_loss.update(loss)
                 # Average gradients among sub-batches
                 loss.div_(math.ceil(float(len(data)) / args.batch_size))
+                tracker.add_record("Start Backpropagation")
                 loss.backward()
             # Gradient is applied across all ranks
             optimizer.step()
             t.set_postfix({'loss': train_loss.avg.item(),
                            'accuracy': 100. * train_accuracy.avg.item()})
             t.update(1)
+            tracker.reset()
 
     if log_writer:
         log_writer.add_scalar('train/loss', train_loss.avg, epoch)
@@ -297,6 +304,89 @@ if __name__ == '__main__':
                           lr=(args.base_lr *
                               lr_scaler),
                           momentum=args.momentum, weight_decay=args.wd)
+    
+    class Tracker:
+        def __init__(self):
+            self.layer = 0
+            self.records = []
+            self.m_layer = {} # m -> layer id
+        
+        def reset(self):
+            if len(self.records) > 0:
+                for record in self.records:
+                    print(",".join(map(lambda x: str(x), record)))
+            self.layer = 0
+            self.records = []
+            self.m_layer = {}
+
+        # def track(self, attrs):
+        #     attrs.append(self.layer)
+        #     self.layer += 1
+        #     self.records.append(attrs)
+        def add_record(self, message):
+            self.records.append([message, time.time()])
+        
+        def backward_track(self, module, parameter, parameter_name):
+            fw_layer = self.m_layer[module]
+            self.records.append(["BP", time.time(), fw_layer, module._get_name(), parameter_name, parameter.size()])
+        
+        def forward_track(self, module, parameter_weight_size):
+            self.layer += 1 
+            self.m_layer[module] = self.layer
+            self.records.append(["FP",time.time(), self.layer, module._get_name(), parameter_weight_size])
+
+    tracker = Tracker()
+    def _make_hook(p, m, name):
+        """Define hook for backward propagation. The hook wraps the allreduce OP as a ByteTask and
+        posts it to Core.
+        Arguments:
+            p: the parameter.
+        """
+        # self._logger.debug("{} calls make_hook for {}".format(self._desc, self._parameter_names[p]))
+        def hook(*args):
+            # g = args[1][0].reshape([-1])[0] #first value of the gradient
+            # print(f'parameter gradient ready: {time.time()} {name}: {p.size()} in layer {m._get_name()}, {g}')
+            # print(f"backward m id {id(m)} = {m._get_name()}, p id {id(p)} name {name}")
+            tracker.backward_track(m, p, name)
+        return hook
+
+    def _register_hooks(p, m, name):
+        """Add a hook after the backward propagation of each layer to start allreduce"""
+        if p.requires_grad:
+            # print(f"{m._get_name()}:{name} grad_fn {p.grad_fn} next {p.grad_fn.next_functions}")
+            p.grad = p.data.new(p.size()).zero_()
+            # self._requires_update.add(p)
+            p_tmp = p.expand_as(p)
+            grad_acc = p_tmp.grad_fn.next_functions[0][0]
+            grad_acc.register_hook(_make_hook(p, m, name))
+            # self._grad_accs.append(grad_acc)
+    
+    
+    
+    def install_backward_hook(m):
+        for name, p in m.named_parameters(recurse = False):
+            _register_hooks(p, m, name)
+    def install_backward_hooks(model):
+        model.apply(install_backward_hook)
+    
+    @torch.no_grad()
+    def install_time_hooks(m):
+        # print(m)
+        def print_layer(m, _):
+            size = 0
+            if hasattr(m, 'weight'):
+                # size = math.prod(m.weight.size()) * m.weight.element_size()
+                size = m.weight.element_size()
+                for dim in m.weight.size():
+                  size *= dim
+            # tracker.track([time.time(), tracker.layer, m._get_name(), size])
+            tracker.forward_track(m, size)
+        m.register_forward_pre_hook(print_layer)
+        
+        #m.register_forward_hook()    
+
+    model.apply(install_time_hooks)
+
 
     # Horovod: (optional) compression algorithm.
     compression = hvd.Compression.fp16 if args.fp16_allreduce else hvd.Compression.none
@@ -321,6 +411,6 @@ if __name__ == '__main__':
     hvd.broadcast_optimizer_state(optimizer, root_rank=0)
 
     for epoch in range(resume_from_epoch, args.epochs):
-        train(epoch)
+        train(epoch, install_backward_hooks, tracker)
         validate(epoch)
         save_checkpoint(epoch)
