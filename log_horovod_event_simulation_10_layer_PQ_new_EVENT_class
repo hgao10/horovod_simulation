@@ -1,0 +1,186 @@
+layer_size_in_packets[0]: 2
+layer_size_in_packets[1]: 2
+layer_size_in_packets[2]: 2
+layer_size_in_packets[3]: 2
+layer_size_in_packets[4]: 2
+layer_size_in_packets[5]: 2
+layer_size_in_packets[6]: 8
+layer_size_in_packets[7]: 8
+layer_size_in_packets[8]: 26
+layer_size_in_packets[9]: 26
+tensor_transmittion_time_ms: 8.0
+event: Time_ms, 60.0, Event, FP_computation_done, Iter, 0, Layer, 0
+event: Time_ms, 114.0, Event, FP_computation_done, Iter, 0, Layer, 1
+event: Time_ms, 162.0, Event, FP_computation_done, Iter, 0, Layer, 2
+event: Time_ms, 204.0, Event, FP_computation_done, Iter, 0, Layer, 3
+event: Time_ms, 240.0, Event, FP_computation_done, Iter, 0, Layer, 4
+event: Time_ms, 270.0, Event, FP_computation_done, Iter, 0, Layer, 5
+event: Time_ms, 294.0, Event, FP_computation_done, Iter, 0, Layer, 6
+event: Time_ms, 312.0, Event, FP_computation_done, Iter, 0, Layer, 7
+event: Time_ms, 324.0, Event, FP_computation_done, Iter, 0, Layer, 8
+event: Time_ms, 330.0, Event, FP_computation_done, Iter, 0, Layer, 9
+event: Time_ms, 447.0, Event, BP_computation_done, Iter, 0, Layer, 9
+event: Time_ms, 455.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 0
+event: Time_ms, 463.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 1
+event: Time_ms, 471.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 2
+event: Time_ms, 479.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 3
+event: Time_ms, 487.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 4
+event: Time_ms, 495.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 5
+event: Time_ms, 503.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 6
+event: Time_ms, 511.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 7
+event: Time_ms, 519.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 8
+event: Time_ms, 527.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 9
+event: Time_ms, 535.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 10
+event: Time_ms, 543.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 11
+event: Time_ms, 551.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 12
+event: Time_ms, 559.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 13
+event: Time_ms, 564.0, Event, BP_computation_done, Iter, 0, Layer, 8
+event: Time_ms, 567.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 14
+event: Time_ms, 575.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 0
+event: Time_ms, 583.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 1
+event: Time_ms, 591.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 2
+event: Time_ms, 599.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 3
+event: Time_ms, 607.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 4
+event: Time_ms, 615.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 5
+event: Time_ms, 623.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 6
+event: Time_ms, 631.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 7
+event: Time_ms, 639.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 8
+event: Time_ms, 647.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 9
+event: Time_ms, 655.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 10
+event: Time_ms, 663.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 11
+event: Time_ms, 668.0, Event, BP_computation_done, Iter, 0, Layer, 7
+event: Time_ms, 671.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 12
+event: Time_ms, 679.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 0
+event: Time_ms, 687.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 1
+event: Time_ms, 695.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 2
+event: Time_ms, 703.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 3
+event: Time_ms, 711.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 4
+event: Time_ms, 719.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 5
+event: Time_ms, 727.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 6
+event: Time_ms, 735.0, Event, Tensor_transimission_done, Iter, 0, Layer, 7, Packet_idx, 7
+event: Time_ms, 743.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 13
+event: Time_ms, 751.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 14
+event: Time_ms, 753.0, Event, Gradients_received, Iter, 1, Layer, 7
+previous_FP_layer_status7: False
+event: Time_ms, 759.0, Event, BP_computation_done, Iter, 0, Layer, 6
+event: Time_ms, 759.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 15
+event: Time_ms, 767.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 0
+event: Time_ms, 775.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 1
+event: Time_ms, 783.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 2
+event: Time_ms, 791.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 3
+event: Time_ms, 799.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 4
+event: Time_ms, 807.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 5
+event: Time_ms, 815.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 6
+event: Time_ms, 823.0, Event, Tensor_transimission_done, Iter, 0, Layer, 6, Packet_idx, 7
+event: Time_ms, 831.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 16
+event: Time_ms, 837.0, Event, BP_computation_done, Iter, 0, Layer, 5
+event: Time_ms, 839.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 17
+event: Time_ms, 841.0, Event, Gradients_received, Iter, 1, Layer, 6
+previous_FP_layer_status6: False
+event: Time_ms, 847.0, Event, Tensor_transimission_done, Iter, 0, Layer, 5, Packet_idx, 0
+event: Time_ms, 855.0, Event, Tensor_transimission_done, Iter, 0, Layer, 5, Packet_idx, 1
+event: Time_ms, 863.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 18
+event: Time_ms, 871.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 19
+event: Time_ms, 873.0, Event, Gradients_received, Iter, 1, Layer, 5
+previous_FP_layer_status5: False
+event: Time_ms, 879.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 20
+event: Time_ms, 887.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 21
+event: Time_ms, 895.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 22
+event: Time_ms, 902.0, Event, BP_computation_done, Iter, 0, Layer, 4
+event: Time_ms, 903.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 23
+event: Time_ms, 911.0, Event, Tensor_transimission_done, Iter, 0, Layer, 4, Packet_idx, 0
+event: Time_ms, 919.0, Event, Tensor_transimission_done, Iter, 0, Layer, 4, Packet_idx, 1
+event: Time_ms, 927.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 24
+event: Time_ms, 935.0, Event, Tensor_transimission_done, Iter, 0, Layer, 8, Packet_idx, 25
+event: Time_ms, 937.0, Event, Gradients_received, Iter, 1, Layer, 4
+previous_FP_layer_status4: False
+event: Time_ms, 943.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 15
+event: Time_ms, 951.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 16
+event: Time_ms, 953.0, Event, Gradients_received, Iter, 1, Layer, 8
+previous_FP_layer_status8: False
+event: Time_ms, 954.0, Event, BP_computation_done, Iter, 0, Layer, 3
+event: Time_ms, 959.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 17
+event: Time_ms, 967.0, Event, Tensor_transimission_done, Iter, 0, Layer, 3, Packet_idx, 0
+event: Time_ms, 975.0, Event, Tensor_transimission_done, Iter, 0, Layer, 3, Packet_idx, 1
+event: Time_ms, 983.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 18
+event: Time_ms, 991.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 19
+event: Time_ms, 993.0, Event, BP_computation_done, Iter, 0, Layer, 2
+event: Time_ms, 993.0, Event, Gradients_received, Iter, 1, Layer, 3
+previous_FP_layer_status3: False
+event: Time_ms, 999.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 20
+event: Time_ms, 1007.0, Event, Tensor_transimission_done, Iter, 0, Layer, 2, Packet_idx, 0
+event: Time_ms, 1015.0, Event, Tensor_transimission_done, Iter, 0, Layer, 2, Packet_idx, 1
+event: Time_ms, 1019.0, Event, BP_computation_done, Iter, 0, Layer, 1
+event: Time_ms, 1023.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 21
+event: Time_ms, 1031.0, Event, Tensor_transimission_done, Iter, 0, Layer, 1, Packet_idx, 0
+event: Time_ms, 1032.0, Event, BP_computation_done, Iter, 0, Layer, 0
+event: Time_ms, 1033.0, Event, Gradients_received, Iter, 1, Layer, 2
+previous_FP_layer_status2: False
+event: Time_ms, 1039.0, Event, Tensor_transimission_done, Iter, 0, Layer, 1, Packet_idx, 1
+event: Time_ms, 1047.0, Event, Tensor_transimission_done, Iter, 0, Layer, 0, Packet_idx, 0
+event: Time_ms, 1055.0, Event, Tensor_transimission_done, Iter, 0, Layer, 0, Packet_idx, 1
+event: Time_ms, 1057.0, Event, Gradients_received, Iter, 1, Layer, 1
+previous_FP_layer_status1: False
+event: Time_ms, 1063.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 22
+event: Time_ms, 1071.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 23
+event: Time_ms, 1073.0, Event, Gradients_received, Iter, 1, Layer, 0
+previous_FP_layer_status0: True
+1073.0,Start FP computation in new iteration in Perfect PQ mode,1
+event: Time_ms, 1079.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 24
+event: Time_ms, 1087.0, Event, Tensor_transimission_done, Iter, 0, Layer, 9, Packet_idx, 25
+event: Time_ms, 1105.0, Event, Gradients_received, Iter, 1, Layer, 9
+previous_FP_layer_status9: False
+event: Time_ms, 2206.0, Event, FP_computation_done, Iter, 1, Layer, 0
+event: Time_ms, 2260.0, Event, FP_computation_done, Iter, 1, Layer, 1
+event: Time_ms, 2308.0, Event, FP_computation_done, Iter, 1, Layer, 2
+event: Time_ms, 2350.0, Event, FP_computation_done, Iter, 1, Layer, 3
+event: Time_ms, 2386.0, Event, FP_computation_done, Iter, 1, Layer, 4
+event: Time_ms, 2416.0, Event, FP_computation_done, Iter, 1, Layer, 5
+event: Time_ms, 2440.0, Event, FP_computation_done, Iter, 1, Layer, 6
+event: Time_ms, 2458.0, Event, FP_computation_done, Iter, 1, Layer, 7
+event: Time_ms, 2470.0, Event, FP_computation_done, Iter, 1, Layer, 8
+event: Time_ms, 2476.0, Event, FP_computation_done, Iter, 1, Layer, 9
+event: Time_ms, 2593.0, Event, BP_computation_done, Iter, 1, Layer, 9
+event: Time_ms, 2601.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 0
+event: Time_ms, 2609.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 1
+event: Time_ms, 2617.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 2
+event: Time_ms, 2625.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 3
+event: Time_ms, 2633.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 4
+event: Time_ms, 2641.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 5
+event: Time_ms, 2649.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 6
+event: Time_ms, 2657.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 7
+event: Time_ms, 2665.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 8
+event: Time_ms, 2673.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 9
+event: Time_ms, 2681.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 10
+event: Time_ms, 2689.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 11
+event: Time_ms, 2697.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 12
+event: Time_ms, 2705.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 13
+event: Time_ms, 2710.0, Event, BP_computation_done, Iter, 1, Layer, 8
+event: Time_ms, 2713.0, Event, Tensor_transimission_done, Iter, 1, Layer, 9, Packet_idx, 14
+event: Time_ms, 2721.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 0
+event: Time_ms, 2729.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 1
+event: Time_ms, 2737.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 2
+event: Time_ms, 2745.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 3
+event: Time_ms, 2753.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 4
+event: Time_ms, 2761.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 5
+event: Time_ms, 2769.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 6
+event: Time_ms, 2777.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 7
+event: Time_ms, 2785.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 8
+event: Time_ms, 2793.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 9
+event: Time_ms, 2801.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 10
+event: Time_ms, 2809.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 11
+event: Time_ms, 2814.0, Event, BP_computation_done, Iter, 1, Layer, 7
+event: Time_ms, 2817.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 12
+event: Time_ms, 2825.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 0
+event: Time_ms, 2833.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 1
+event: Time_ms, 2841.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 2
+event: Time_ms, 2849.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 3
+event: Time_ms, 2857.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 4
+event: Time_ms, 2865.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 5
+event: Time_ms, 2873.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 6
+event: Time_ms, 2881.0, Event, Tensor_transimission_done, Iter, 1, Layer, 7, Packet_idx, 7
+event: Time_ms, 2889.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 13
+event: Time_ms, 2897.0, Event, Tensor_transimission_done, Iter, 1, Layer, 8, Packet_idx, 14
+event: Time_ms, 2899.0, Event, Gradients_received, Iter, 2, Layer, 7
+break out of while loop : iteration: 2
+[[0, 'Start FP'], <__main__.Compute_Event object at 0x7f72a54c6410>, <__main__.Compute_Event object at 0x7f72a54c6450>, <__main__.Compute_Event object at 0x7f72a54c6490>, <__main__.Compute_Event object at 0x7f72a54c64d0>, <__main__.Compute_Event object at 0x7f72a54c6510>, <__main__.Compute_Event object at 0x7f72a54c6590>, <__main__.Compute_Event object at 0x7f72a54c65d0>, <__main__.Compute_Event object at 0x7f72a54c6610>, <__main__.Compute_Event object at 0x7f72a54c6650>, <__main__.Compute_Event object at 0x7f72a54c6550>, <__main__.Compute_Event object at 0x7f72a54c6550>, <__main__.Compute_Event object at 0x7f72a54c66d0>, <__main__.Transmit_Event object at 0x7f72a54c6d50>, <__main__.Transmit_Event object at 0x7f72a54c6d90>, <__main__.Transmit_Event object at 0x7f72a54c6710>, <__main__.Transmit_Event object at 0x7f72a54c6750>, <__main__.Transmit_Event object at 0x7f72a54c6790>, <__main__.Transmit_Event object at 0x7f72a54c67d0>, <__main__.Transmit_Event object at 0x7f72a54c6850>, <__main__.Transmit_Event object at 0x7f72a54c6890>, <__main__.Transmit_Event object at 0x7f72a54c68d0>, <__main__.Transmit_Event object at 0x7f72a54c6910>, <__main__.Transmit_Event object at 0x7f72a54c6810>, <__main__.Transmit_Event object at 0x7f72a54c6950>, <__main__.Transmit_Event object at 0x7f72a54c6990>, <__main__.Transmit_Event object at 0x7f72a54c69d0>, <__main__.Compute_Event object at 0x7f72a54c6690>, <__main__.Transmit_Event object at 0x7f72a54c6a10>, <__main__.Transmit_Event object at 0x7f72a54d8490>, <__main__.Transmit_Event object at 0x7f72a54c6a50>, <__main__.Transmit_Event object at 0x7f72a54c6dd0>, <__main__.Transmit_Event object at 0x7f72a54c6e10>, <__main__.Transmit_Event object at 0x7f72a54c6e50>, <__main__.Transmit_Event object at 0x7f72a54c6e90>, <__main__.Transmit_Event object at 0x7f72a54c6ed0>, <__main__.Transmit_Event object at 0x7f72a54c6f10>, <__main__.Transmit_Event object at 0x7f72a54c6f50>, <__main__.Transmit_Event object at 0x7f72a54c6f90>, <__main__.Transmit_Event object at 0x7f72a54c6fd0>, <__main__.Transmit_Event object at 0x7f72a54d8050>, <__main__.Compute_Event object at 0x7f72a54d8450>, <__main__.Transmit_Event object at 0x7f72a54d8090>, <__main__.Transmit_Event object at 0x7f72a54d86d0>, <__main__.Transmit_Event object at 0x7f72a54d80d0>, <__main__.Transmit_Event object at 0x7f72a54d84d0>, <__main__.Transmit_Event object at 0x7f72a54d8510>, <__main__.Transmit_Event object at 0x7f72a54d8550>, <__main__.Transmit_Event object at 0x7f72a54d8590>, <__main__.Transmit_Event object at 0x7f72a54d85d0>, <__main__.Transmit_Event object at 0x7f72a54d8610>, <__main__.Transmit_Event object at 0x7f72a54d8650>, <__main__.Transmit_Event object at 0x7f72a54d8110>, <__main__.Gradients_Event object at 0x7f72a54d8710>, <__main__.Compute_Event object at 0x7f72a54d8690>, <__main__.Transmit_Event object at 0x7f72a54d8150>, <__main__.Transmit_Event object at 0x7f72a54d8950>, <__main__.Transmit_Event object at 0x7f72a54d8190>, <__main__.Transmit_Event object at 0x7f72a54d8750>, <__main__.Transmit_Event object at 0x7f72a54d8790>, <__main__.Transmit_Event object at 0x7f72a54d87d0>, <__main__.Transmit_Event object at 0x7f72a54d8810>, <__main__.Transmit_Event object at 0x7f72a54d8850>, <__main__.Transmit_Event object at 0x7f72a54d8890>, <__main__.Transmit_Event object at 0x7f72a54d88d0>, <__main__.Compute_Event object at 0x7f72a54d8910>, <__main__.Transmit_Event object at 0x7f72a54d81d0>, <__main__.Gradients_Event object at 0x7f72a54d8990>, <__main__.Transmit_Event object at 0x7f72a54d8a50>, <__main__.Transmit_Event object at 0x7f72a54d8210>, <__main__.Transmit_Event object at 0x7f72a54d89d0>, <__main__.Transmit_Event object at 0x7f72a54d8250>, <__main__.Gradients_Event object at 0x7f72a54d8a90>, <__main__.Transmit_Event object at 0x7f72a54d8290>, <__main__.Transmit_Event object at 0x7f72a54d82d0>, <__main__.Transmit_Event object at 0x7f72a54d8310>, <__main__.Compute_Event object at 0x7f72a54d8a10>, <__main__.Transmit_Event object at 0x7f72a54d8350>, <__main__.Transmit_Event object at 0x7f72a54d8b50>, <__main__.Transmit_Event object at 0x7f72a54d8390>, <__main__.Transmit_Event object at 0x7f72a54d8ad0>, <__main__.Transmit_Event object at 0x7f72a54d83d0>, <__main__.Gradients_Event object at 0x7f72a54d8b90>, <__main__.Transmit_Event object at 0x7f72a54d8410>, <__main__.Transmit_Event object at 0x7f72a54c6a90>, <__main__.Gradients_Event object at 0x7f72a54d8bd0>, <__main__.Compute_Event object at 0x7f72a54d8b10>, <__main__.Transmit_Event object at 0x7f72a54c6ad0>, <__main__.Transmit_Event object at 0x7f72a54d8c90>, <__main__.Transmit_Event object at 0x7f72a54c6b10>, <__main__.Transmit_Event object at 0x7f72a54d8c10>, <__main__.Transmit_Event object at 0x7f72a54c6b50>, <__main__.Compute_Event object at 0x7f72a54d8c50>, <__main__.Gradients_Event object at 0x7f72a54d8cd0>, <__main__.Transmit_Event object at 0x7f72a54d8d10>, <__main__.Transmit_Event object at 0x7f72a54b2210>, <__main__.Transmit_Event object at 0x7f72a54cab10>, <__main__.Compute_Event object at 0x7f72a55967d0>, <__main__.Transmit_Event object at 0x7f72a54cab90>, <__main__.Transmit_Event object at 0x7f72a54ade10>, <__main__.Compute_Event object at 0x7f72a54add90>, <__main__.Gradients_Event object at 0x7f72a54b21d0>, <__main__.Transmit_Event object at 0x7f72a54b2150>, <__main__.Transmit_Event object at 0x7f72a54c6bd0>, <__main__.Transmit_Event object at 0x7f72a54addd0>, <__main__.Gradients_Event object at 0x7f72a54adf50>, <__main__.Transmit_Event object at 0x7f72a54c6b90>, <__main__.Transmit_Event object at 0x7f72a54c6c50>, <__main__.Gradients_Event object at 0x7f72a54d8d50>, <__main__.Gradients_Event object at 0x7f72a54d8d50>, <__main__.Transmit_Event object at 0x7f72a54c6c90>, <__main__.Transmit_Event object at 0x7f72a54c6c10>, <__main__.Gradients_Event object at 0x7f72a54d8dd0>, <__main__.Compute_Event object at 0x7f72a54d8d90>, <__main__.Compute_Event object at 0x7f72a54c6d10>, <__main__.Compute_Event object at 0x7f72a54d8e10>, <__main__.Compute_Event object at 0x7f72a54d8e50>, <__main__.Compute_Event object at 0x7f72a54d8e90>, <__main__.Compute_Event object at 0x7f72a54d8ed0>, <__main__.Compute_Event object at 0x7f72a54d8f10>, <__main__.Compute_Event object at 0x7f72a54d8f50>, <__main__.Compute_Event object at 0x7f72a54d8f90>, <__main__.Compute_Event object at 0x7f72a54d8fd0>, <__main__.Compute_Event object at 0x7f72a54d8fd0>, <__main__.Compute_Event object at 0x7f72a54d7090>, <__main__.Transmit_Event object at 0x7f72a54d7710>, <__main__.Transmit_Event object at 0x7f72a54d7750>, <__main__.Transmit_Event object at 0x7f72a54d70d0>, <__main__.Transmit_Event object at 0x7f72a54d7110>, <__main__.Transmit_Event object at 0x7f72a54d7150>, <__main__.Transmit_Event object at 0x7f72a54d7190>, <__main__.Transmit_Event object at 0x7f72a54d7210>, <__main__.Transmit_Event object at 0x7f72a54d7250>, <__main__.Transmit_Event object at 0x7f72a54d7290>, <__main__.Transmit_Event object at 0x7f72a54d72d0>, <__main__.Transmit_Event object at 0x7f72a54d71d0>, <__main__.Transmit_Event object at 0x7f72a54d7310>, <__main__.Transmit_Event object at 0x7f72a54d7350>, <__main__.Transmit_Event object at 0x7f72a54d7390>, <__main__.Compute_Event object at 0x7f72a54d7050>, <__main__.Transmit_Event object at 0x7f72a54d73d0>, <__main__.Transmit_Event object at 0x7f72a54d7e10>, <__main__.Transmit_Event object at 0x7f72a54d7410>, <__main__.Transmit_Event object at 0x7f72a54d7790>, <__main__.Transmit_Event object at 0x7f72a54d77d0>, <__main__.Transmit_Event object at 0x7f72a54d7810>, <__main__.Transmit_Event object at 0x7f72a54d7850>, <__main__.Transmit_Event object at 0x7f72a54d7890>, <__main__.Transmit_Event object at 0x7f72a54d78d0>, <__main__.Transmit_Event object at 0x7f72a54d7910>, <__main__.Transmit_Event object at 0x7f72a54d7950>, <__main__.Transmit_Event object at 0x7f72a54d7990>, <__main__.Transmit_Event object at 0x7f72a54d79d0>, <__main__.Compute_Event object at 0x7f72a54d7dd0>, <__main__.Transmit_Event object at 0x7f72a54d7a10>, <__main__.Transmit_Event object at 0x7f72a54e4090>, <__main__.Transmit_Event object at 0x7f72a54d7a50>, <__main__.Transmit_Event object at 0x7f72a54d7e50>, <__main__.Transmit_Event object at 0x7f72a54d7e90>, <__main__.Transmit_Event object at 0x7f72a54d7ed0>, <__main__.Transmit_Event object at 0x7f72a54d7f10>, <__main__.Transmit_Event object at 0x7f72a54d7f50>, <__main__.Transmit_Event object at 0x7f72a54d7f90>, <__main__.Transmit_Event object at 0x7f72a54d7fd0>, <__main__.Transmit_Event object at 0x7f72a54d7a90>, <__main__.Gradients_Event object at 0x7f72a54e40d0>]

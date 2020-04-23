@@ -26,8 +26,6 @@ bp_diff_per_layer_ms = 2 * bp_total_time_ms // (num_layer * (num_layer-1))
 
 fp_layers = {layer: fp_first_layer_ms - layer * fp_diff_per_layer_ms for layer in range(num_layer)}
 bp_layers = {layer: layer * bp_diff_per_layer_ms for layer in range(num_layer)}
-# fp_layers = {layer: num_layer*2-layer for layer in range(num_layer)}
-# bp_layers = {layer: layer*3 + 1 for layer in range(num_layer)}
 
 # tracks computation completion status per layer according to data dependency
 # the first layer is always true as it doesn't depend on any previous layer
@@ -89,7 +87,9 @@ TotalAllReduceTime = allReduceComputeTime + ApplyLayerGradient + 2* (tensor_tran
 
 def enque_FP(curr_time, iteration):
     for layer, compute_time in fp_layers.items():
-        heapq.heappush(event_queue, [compute_time + curr_time, "FP_computation_done", layer,  iteration])
+        next_event = Compute_Event(compute_time + curr_time, "FP", layer, iteration, "done")
+        heapq.heappush(event_queue, next_event)
+        # heapq.heappush(event_queue, [compute_time + curr_time, "FP_computation_done", layer,  iteration])
         curr_time += compute_time
 
 # transmission queue: comprised of packet_id (iteration_idx, layer_idx, packet_idx)
@@ -101,11 +101,15 @@ def transmit_tensor(curr_time): # tensor_layer, iteration):
     else:
         return
     # print(f'transimitting packet: iter:{packet.iteration_idx}, layer: {packet.layer_idx}, id: {packet.packet_idx}')
-    heapq.heappush(event_queue, [tensor_transmittion_time_ms+curr_time, "Done_transmitting_tensors",  packet.layer_idx, packet.iteration_idx, packet.packet_idx])
+    next_event = Transmit_Event(tensor_transmittion_time_ms+curr_time, "done", packet.iteration_idx, packet.layer_idx, packet.packet_idx)
+    heapq.heappush(event_queue, next_event)
+    # heapq.heappush(event_queue, [tensor_transmittion_time_ms+curr_time, "Tensor_transimission_done",  packet.layer_idx, packet.iteration_idx, packet.packet_idx])
     if packet.packet_idx == layer_size_in_packets[packet.layer_idx] - 1: # last packet in the layer, assume that there is no OOO transmission
         if not increment_iteration_status[packet.iteration_idx+1]: # any layer that finishes transmitting all gradients will increament the iteration for that layer
             packet.iteration_idx += 1
-        heapq.heappush(event_queue, [TotalAllReduceTime + curr_time, "Received_gradients_update", packet.layer_idx, packet.iteration_idx, packet.packet_idx])
+        next_event = Gradients_Event(TotalAllReduceTime + curr_time, packet.iteration_idx, packet.layer_idx)
+        heapq.heappush(event_queue, next_event)
+        # heapq.heappush(event_queue, [TotalAllReduceTime + curr_time, "Gradients_received", packet.layer_idx, packet.iteration_idx])
     #to_be_transmitted = tensor_size
     global InTransit 
     InTransit = True
@@ -121,10 +125,6 @@ def add_to_transmission_queue(num_packets, layer, iteration):
             heapq.heappush(PerfectPQ_transmission_queue, p)
         else:
             print(f'Error: packet isnt added')
-    # if layer == 3:
-    #     while PerfectPQ_transmission_queue:
-    #         print(f'Pop packets: {heapq.heappop(PerfectPQ_transmission_queue)}')
-
 
 class Packet():
     def __init__(self, iteration_idx, layer_idx, packet_idx):
@@ -144,6 +144,59 @@ class Packet():
     def set_priority(self, priority):
         self.priority = priority
 
+
+class Event():
+    def __init__(self, name, time):
+        self.name = name
+        self.time = time
+
+    def __lt__(self, other):
+        return self.time < other.time
+    
+    def __str__(self):
+        return (f'Time_ms, {self.time}, Event, {self.name}')
+
+
+class Compute_Event(Event):
+    def __init__(self, time, direction, layer, iteration, state):
+        # Forward or Backward
+        name = direction + '_computation_' + state
+        super().__init__(name, time)
+        self.direction = direction 
+        self.iteration = iteration
+        self.layer = layer
+        # start or done
+        self.state = state
+    
+    def __str__(self):
+        return (f'Time_ms, {self.time}, Event, {self.name}, Iter, {self.iteration}, Layer, {self.layer}')
+
+
+class Transmit_Event(Event):
+    def __init__(self, time, state, iteration, layer, packet_idx):
+        # start or done
+        self.state = state
+        name = 'Tensor_transimission_' + state 
+        super().__init__(name, time)
+        self.iteration = iteration
+        self.layer = layer
+        self.packet_idx = packet_idx
+        # Start or Finish
+        self.state = state
+    
+    def __str__(self):
+        return (f'Time_ms, {self.time}, Event, {self.name}, Iter, {self.iteration}, Layer, {self.layer}, Packet_idx, {self.packet_idx}')
+
+
+class Gradients_Event(Event):
+    def __init__(self, time, iteration, layer):
+        super().__init__("Gradients_received", time)
+        self.iteration = iteration
+        self.layer = layer
+    
+    def __str__(self):
+        return (f'Time_ms, {self.time}, Event, {self.name}, Iter, {self.iteration}, Layer, {self.layer}')
+
 # enque all FP events for the first iteration where there is no blocking
 curr_time = 0
 record.append([curr_time, "Start FP"])
@@ -152,11 +205,10 @@ enque_FP(curr_time, 0)
 ''' main event loop '''
 while event_queue:
     event = heapq.heappop(event_queue)
-    timestamp, layer, iteration = event[0], event[2], event[3]
+    timestamp, layer, iteration = event.time, event.layer, event.iteration
     record.append(event)
     print(f'event: {event}')
-    if event[1] == "FP_computation_done":
-        iteration = event[3]
+    if event.name == "FP_computation_done":
         curr_time = timestamp
         if PerfectPQ:
             if iteration != 0: # all FP events have been pushed for iteration 0
@@ -167,15 +219,20 @@ while event_queue:
                 if layer < num_layer-1: # unblock the compute for next FP layer
                     previous_FP_layer_status[layer+1] = True
                     if gradient_received[layer+1]:
-                        heapq.heappush(event_queue, [fp_layers[layer+1] + curr_time, "FP_computation_done", layer+1,  iteration])
+                        next_event = Compute_Event(fp_layers[layer+1] + curr_time, "FP", layer+1, iteration, "done")
+                        heapq.heappush(event_queue, next_event)
+                        # heapq.heappush(event_queue, [fp_layers[layer+1] + curr_time, "FP_computation_done", layer+1,  iteration])
                 gradient_received[layer] = False
         # no need to handle FIFO case cause all FP events have been pushed once at the start of the new iteration 
         if layer == num_layer - 1: #last layer
-            record.append([curr_time, "Start BP"])
-            heapq.heappush(event_queue,[bp_layers[layer]+curr_time,"BP_computation_done", layer, iteration] )
+            # record.append([curr_time, "Start BP"])
+            next_event = Event(curr_time, "Start BP")
+            record.append(event)
+            next_event = Compute_Event(bp_layers[layer]+curr_time, "BP", layer, iteration, "done")
+            heapq.heappush(event_queue, next_event)
+            # heapq.heappush(event_queue,[bp_layers[layer]+curr_time,"BP_computation_done", layer, iteration] )
 
-    elif (event[1] == "BP_computation_done"):
-        iteration = event[3]
+    elif (event.name == "BP_computation_done"):
         curr_time = timestamp
         # ready to send gradient
         num_packets = layer_size_in_packets[layer]
@@ -186,14 +243,16 @@ while event_queue:
             transmit_tensor(curr_time)
         # start BP for next layer
         if layer > 0:
-            heapq.heappush(event_queue,[bp_layers[layer]+curr_time,"BP_computation_done", layer-1, iteration] )
+            next_event = Compute_Event(bp_layers[layer]+curr_time, "BP", layer-1, iteration, "done")
+            heapq.heappush(event_queue, next_event)
+            # heapq.heappush(event_queue,[bp_layers[layer]+curr_time,"BP_computation_done", layer-1, iteration] )
 
-    elif event[1] == "Done_transmitting_tensors":
+    elif event.name == "Tensor_transimission_done":
         InTransit = False
         curr_time = timestamp
         transmit_tensor(curr_time)
     
-    elif event[1] == "Received_gradients_update":
+    elif event.name == "Gradients_received":
         curr_time = timestamp
         gradient_received[layer] = True
         # Barrier between each iteration, current implementation
@@ -204,17 +263,23 @@ while event_queue:
         if IterationBarrier == True:
             if sum(gradient_received.values()) == num_layer: # all gradients have received
                 print(f'{curr_time},Start FP computation in new iteration in FIFO mode,{iteration}')
+                next_event = Event(curr_time, "Start FP computation in new iteration in FIFO mode")
+                record.append(next_event)
                 enque_FP(curr_time, iteration)
             else:
                 print(f'Have not received all gradients')
         else: # start FP whenever previous FP layer has finished computation and gradients have been received and updated this layer 
-            print(f'previous_FP_layer_status[layer]: {previous_FP_layer_status[layer]}')
+            print(f'previous_FP_layer_status[{layer}]: {previous_FP_layer_status[layer]}')
             if previous_FP_layer_status[layer]:
                 # start computation of FP layer
                 compute_time = fp_layers[layer]
                 if layer == 0:
                     print(f'{curr_time},Start FP computation in new iteration in Perfect PQ mode,{iteration}')
-                heapq.heappush(event_queue, [compute_time+curr_time, "FP_computation_done", layer, iteration])
+                    next_event = Event(curr_time, "Start FP computation in new iteration in Perfect PQ mode")
+                    record.append(event)
+                next_event = Compute_Event(compute_time+curr_time, "FP", layer, iteration, "done")
+                heapq.heappush(event_queue, next_event)
+                # heapq.heappush(event_queue, [compute_time+curr_time, "FP_computation_done", layer, iteration])
     else:
         print(f"Error: Non-existing Event: {event}")
         break
