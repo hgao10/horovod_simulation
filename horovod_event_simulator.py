@@ -11,25 +11,25 @@ PerfectPQ_transmission_queue = [] # minheap sorted by priority
 
 event_queue = []
 transmission_rate_Gbit_per_sec = 10 
-num_layer = 10 #make it an argument
+num_layers = 10 #make it an argument
 
 # Resnet50 on one P100: 900 ms 
-iteration_time_P100_ms = 900
-fp_total_time_ms = (1/3) * iteration_time_P100_ms
-bp_total_time_ms = (2/3) * iteration_time_P100_ms
+compute_time_per_iteration_ms = 900
+fp_total_time_ms = (1/3) * compute_time_per_iteration_ms
+bp_total_time_ms = (2/3) * compute_time_per_iteration_ms
 
 # To simplify computation time in FP: assum each layer takes less then d ms to compute than previous layer and the last layer takes 0 ms
-fp_diff_per_layer_ms = 2 * fp_total_time_ms // (num_layer * (num_layer-1))
-fp_first_layer_ms = 2 * fp_total_time_ms // num_layer
+fp_diff_per_layer_ms = 2 * fp_total_time_ms // (num_layers * (num_layers-1))
+fp_first_layer_ms = 2 * fp_total_time_ms // num_layers
 # Same simplification applies to BP except its in ascending order
-bp_diff_per_layer_ms = 2 * bp_total_time_ms // (num_layer * (num_layer-1))
+bp_diff_per_layer_ms = 2 * bp_total_time_ms // (num_layers * (num_layers-1))
 
-fp_layers = {layer: fp_first_layer_ms - layer * fp_diff_per_layer_ms for layer in range(num_layer)}
-bp_layers = {layer: layer * bp_diff_per_layer_ms for layer in range(num_layer)}
+fp_layers = {layer: fp_first_layer_ms - layer * fp_diff_per_layer_ms for layer in range(num_layers)}
+bp_layers = {layer: layer * bp_diff_per_layer_ms for layer in range(num_layers)}
 
 # tracks computation completion status per layer according to data dependency
 # the first layer is always true as it doesn't depend on any previous layer
-previous_FP_layer_status = {layer: False for layer in range(num_layer)}
+previous_FP_layer_status = {layer: False for layer in range(num_layers)}
 previous_FP_layer_status[0] = True
 
 # total model is 100MB
@@ -38,14 +38,14 @@ model_size_MB = 100 #MB
 min_layer_size_MB = 2 * model_size_MB // 9  
 
 layer_size = {}
-for layer in range(num_layer):
-    if layer <= num_layer//2:
+for layer in range(num_layers):
+    if layer <= num_layers//2:
         layer_size[layer] = min_layer_size_MB
-    elif  num_layer//2 <layer <= 3*num_layer//4:
+    elif  num_layers//2 <layer <= 3*num_layers//4:
         layer_size[layer] = 4 * min_layer_size_MB
     else:
         layer_size[layer] = 12 * min_layer_size_MB
-# layer_size = {layer: model_size/num_layer * (layer +1) for layer in range(num_layer) }
+# layer_size = {layer: model_size/num_layers * (layer +1) for layer in range(num_layers) }
 
 num_priority_queues = 4
 priority_queues = {}
@@ -57,18 +57,18 @@ packet_size_MB = 10
 
 # number of packets to be sent/received per layer 
 layer_size_in_packets = {} 
-for layer in range(num_layer):
+for layer in range(num_layers):
     layer_size_in_packets[layer] = int(layer_size[layer]//packet_size_MB) # gradient is always multiples of tensors
     print(f'layer_size_in_packets[{layer}]: {layer_size_in_packets[layer]}')
 # TODO incorperate credit_size in non perfect priority queue situation where packets can only be pre-empted if there is enough credit left 
 credit_size = 1
-now_pico_seconds = 0
 TotalIteration = 2
 increment_iteration_status = {i: False for i in range(TotalIteration+1)}
 
-gradient_received = {layer: False for layer in range(num_layer)}
-record = []
-received_tensor_count = {layer: 0 for layer in range(num_layer)}
+gradient_received = {layer: False for layer in range(num_layers)}
+# key: event name value: event obj
+record = collections.defaultdict(list)
+received_tensor_count = {layer: 0 for layer in range(num_layers)}
 
 InTransit = False
 allReduceComputeTime = 0
@@ -80,7 +80,7 @@ tensor_transmittion_time_ms = packet_size_MB * 8 /transmission_rate_Gbit_per_sec
 print(f'tensor_transmittion_time_ms: {tensor_transmittion_time_ms}')
 propagation_delay_ms = 5 # ms
 
-#TODO simplied version, each worker sends the entire amount of gradient per layer at once instead of gradient/num_worker for num_worker times, refer to ring allreduce paper
+#TODO simplied version, each worker sends the entire amount of gradient per layer at once instead of gradient/num_workers for num_workers times, refer to ring allreduce paper
 TotalAllReduceTime = allReduceComputeTime + ApplyLayerGradient + 2* (tensor_transmittion_time_ms + propagation_delay_ms) # compute + network roundtrip time
 
 #TODO create an event class! and pass event.str() to record function
@@ -161,7 +161,7 @@ class Compute_Event(Event):
     def __init__(self, time, direction, layer, iteration, state):
         # Forward or Backward
         name = direction + '_computation_' + state
-        super().__init__(name, time)
+        super().__init__(name, time)    
         self.direction = direction 
         self.iteration = iteration
         self.layer = layer
@@ -199,14 +199,14 @@ class Gradients_Event(Event):
 
 # enque all FP events for the first iteration where there is no blocking
 curr_time = 0
-record.append([curr_time, "Start FP"])
+record["Start FP"].append(Event("Start FP", curr_time))
 enque_FP(curr_time, 0)
 
 ''' main event loop '''
 while event_queue:
     event = heapq.heappop(event_queue)
     timestamp, layer, iteration = event.time, event.layer, event.iteration
-    record.append(event)
+    record[event.name].append(event)
     print(f'event: {event}')
     if event.name == "FP_computation_done":
         curr_time = timestamp
@@ -216,7 +216,7 @@ while event_queue:
                 # restore previous FP compute status to not ready for next iteration
                 if layer != 0: # first layer is execluded because it's always ready to compute once gradients are received
                     previous_FP_layer_status[layer] = False            
-                if layer < num_layer-1: # unblock the compute for next FP layer
+                if layer < num_layers-1: # unblock the compute for next FP layer
                     previous_FP_layer_status[layer+1] = True
                     if gradient_received[layer+1]:
                         next_event = Compute_Event(fp_layers[layer+1] + curr_time, "FP", layer+1, iteration, "done")
@@ -224,10 +224,9 @@ while event_queue:
                         # heapq.heappush(event_queue, [fp_layers[layer+1] + curr_time, "FP_computation_done", layer+1,  iteration])
                 gradient_received[layer] = False
         # no need to handle FIFO case cause all FP events have been pushed once at the start of the new iteration 
-        if layer == num_layer - 1: #last layer
+        if layer == num_layers - 1: #last layer
             # record.append([curr_time, "Start BP"])
-            next_event = Event(curr_time, "Start BP")
-            record.append(event)
+            record["Start BP"].append(Event("Start BP", curr_time))
             next_event = Compute_Event(bp_layers[layer]+curr_time, "BP", layer, iteration, "done")
             heapq.heappush(event_queue, next_event)
             # heapq.heappush(event_queue,[bp_layers[layer]+curr_time,"BP_computation_done", layer, iteration] )
@@ -261,10 +260,9 @@ while event_queue:
             # exit while loops
             break
         if IterationBarrier == True:
-            if sum(gradient_received.values()) == num_layer: # all gradients have received
+            if sum(gradient_received.values()) == num_layers: # all gradients have received
                 print(f'{curr_time},Start FP computation in new iteration in FIFO mode,{iteration}')
-                next_event = Event(curr_time, "Start FP computation in new iteration in FIFO mode")
-                record.append(next_event)
+                record["Start FP computation in new iteration in FIFO mode"].append(Event("Start FP computation in new iteration in FIFO mode", curr_time))
                 enque_FP(curr_time, iteration)
             else:
                 print(f'Have not received all gradients')
@@ -275,8 +273,7 @@ while event_queue:
                 compute_time = fp_layers[layer]
                 if layer == 0:
                     print(f'{curr_time},Start FP computation in new iteration in Perfect PQ mode,{iteration}')
-                    next_event = Event(curr_time, "Start FP computation in new iteration in Perfect PQ mode")
-                    record.append(event)
+                    record["Start FP computation in new iteration in Perfect PQ mode"].append(Event("Start FP computation in new iteration in Perfect PQ mode", curr_time))
                 next_event = Compute_Event(compute_time+curr_time, "FP", layer, iteration, "done")
                 heapq.heappush(event_queue, next_event)
                 # heapq.heappush(event_queue, [compute_time+curr_time, "FP_computation_done", layer, iteration])
@@ -284,9 +281,92 @@ while event_queue:
         print(f"Error: Non-existing Event: {event}")
         break
 
-print(record)
+#print(record)
 
-            
+'''
+Simulation setup
+
+input: 
+    scheduling discipline: 
+                                        FIFO or PerfectPQ
+                                        default = FIFO
+    packet_size_MB: 
+                                        "packet" size in MB, see below details on the definition of packet
+                                        An abstraction of packets to shorten simulation time, 
+                                        with 10MB and current resnet model size 100MB, each layer
+                                        has at least 2 "packets", to ensure each layer can be interrupted at least once
+                                        Can be viewed as the smallest unit that needs to be transmitted or the minimal delay of network transmission if 
+                                        higher priority packet is to be inserted into the front of the queue
+                                        should be kept under 20MB if num_layers = 10 and model_size = 100 MB
+                                        Higheset allowed value assuming per layer distributino is the same: layer_size[0] // packet_size >= 1
+
+                                        default = 10 
+    transmission_rate_Gbit_per_sec: 
+                                        Unidirectional network bandwidth in Gbit/s
+                                        default = 10 
+    propagation_delay_ms: 
+                                        One way propogation delay in ms
+                                        default = 5
+    num_layers: 
+                                        Number of layers in the target model, default assumes resnet50 v1.5
+                                        default = 182
+    compute_time_per_iteration_ms: 
+                                        per_layer computation time is then computed automatically based on an estimation of the generation distribution per layer
+                                        default = 900 ms, execution time on a P100 GPU 
+    num_workers:
+                                        Num of workers that participe in allreduce, >= 2
+                                        default = 2
+    credit_size:                        
+                                        Number of packets(tensors) must be transmitted before preemption
+                                        default = 1
+    num_prirority_queues:
+                                        Number of priority queues
+                                        default = 1 if PerfectPQ
+
+    TotalIteration:
+                                        Number of iterations to be executed per test
+                                        default = 2, only need to capture 1 as each iteration takes the same amount of time assuming no disturbance is injected
+output:
+    iteration time in ms
+    Single run:
+                                        timestamp and events
+    PerfectPQ:
+                                        slack time per layer                                      
+'''
+
+# compute iteration time from records
+def compute_iteration_time(record):
+    iteration_time_ms = 0
+    iteration_start_time = 0
+    for event in record["FP_computation_done"]:
+        if  event.layer == num_layers -1:
+            if event.iteration == 0:
+                iteration_start_time = event.time
+            if event.iteration == 1:
+                iteration_time_ms = event.time - iteration_start_time
+                break
+    print(f'iteration_time_ms: {iteration_time_ms}') 
+    return iteration_time_ms
+    
+def compute_slack_time_FIFO(record, fp_layers):
+    # compute slack per layer for FIFO
+    slack_per_layer_in_ms = {layer: 0 for layer in range(num_layers)}
+    # Time difference between when gradients are computed to when gradients are needed
+    # gradients_received_timestamp = {layer: 0 for layer in range(num_layers)}
+    BP_computation_done_timestamp = {layer: 0 for layer in range(num_layers)}
+    for event in record["BP_computation_done"]:
+        if event.iteration == 0:
+            BP_computation_done_timestamp[event.layer] = event.time
+    for event in record["FP_computation_done"]:
+        if event.iteration == 1:
+            # print(f'layer: {event.layer}, FP_computation_done, {event.time}, fp_layers, {fp_layers[event.layer]}, BP compute done: { BP_computation_done_timestamp[event.layer]}')
+            slack_per_layer_in_ms[event.layer] = event.time - fp_layers[event.layer] - BP_computation_done_timestamp[event.layer]
+
+    print(f'slack_per_layer_in_ms: {slack_per_layer_in_ms}')
+    return slack_per_layer_in_ms
+
+#compute_iteration_time(record)
+#compute_slack_time_FIFO(record, fp_layers)
 
 
 
