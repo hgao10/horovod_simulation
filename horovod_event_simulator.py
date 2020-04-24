@@ -75,7 +75,7 @@ class Gradients_Event(Event):
 
 
 class HorovodSimulator():
-    def __init__(self):
+    def __init__(self, num_layers, packet_size_MB):
         # key: event name value: event obj
         self.record = collections.defaultdict(list)
         
@@ -92,7 +92,9 @@ class HorovodSimulator():
         self.event_queue = []
         self.curr_time = 0
         # model specific
-        self.num_layers = 10
+        self.num_layers = num_layers #150
+        # smallest transmission unit tensor, could also be packet
+        self.packet_size_MB = packet_size_MB #10 
         
         # Resnet50 on one P100: 900 ms 
         self.compute_time_per_iteration_ms = 900
@@ -111,7 +113,6 @@ class HorovodSimulator():
         self.min_layer_size_MB = 2 * self.model_size_MB // 9  
         self.layer_size = {}
         self.calculate_layer_size()        
-
         # Test run specs
         self.TotalIteration = 2
 
@@ -133,11 +134,10 @@ class HorovodSimulator():
 
         # network specs
         self.transmission_rate_Gbit_per_sec = 10
-        # smallest transmission unit tensor, could also be packet
-        self.packet_size_MB = 10 
         # number of packets to be sent/received per layer  
         self.layer_size_in_packets = {}
         self._init_layer_size_in_packets()
+        print(self.layer_size_in_packets)
         # The transmission delay is the amount of time required for the router to push out the packet.
         # The propagation delay, is the time it takes a bit to propagate from one router to the next.
         self.tensor_transmittion_time_ms = self.packet_size_MB * 8 /self.transmission_rate_Gbit_per_sec 
@@ -151,6 +151,35 @@ class HorovodSimulator():
         self.priority_queues = {}
         # TODO incorperate credit_size in non perfect priority queue situation where packets can only be pre-empted if there is enough credit left 
         self.credit_size = 1
+
+    def set_PerfectPQ_qdisc(self):
+        self.iteration_barrier = False
+        self.FIFO_set = self.iteration_barrier
+        self.PerfectPQ_set = not self.FIFO_set
+
+    def set_model_compute_time_per_iteration_ms(self, time):
+        self.compute_time_per_iteration_ms = time
+        self.fp_total_time_ms = (1/3) * self.compute_time_per_iteration_ms
+        self.bp_total_time_ms = (2/3) * self.compute_time_per_iteration_ms
+        # To simplify computation time in FP: assum each layer takes less then d ms to compute than previous layer and the last layer takes 0 ms
+        self.fp_diff_per_layer_ms = 2 * self.fp_total_time_ms // (self.num_layers * (self.num_layers-1))
+        self.fp_first_layer_ms = 2 * self.fp_total_time_ms // self.num_layers
+        # Same simplification applies to BP except its in ascending order
+        self.bp_diff_per_layer_ms = 2 * self.bp_total_time_ms // (self.num_layers * (self.num_layers-1))
+        self.fp_layers = {layer: self.fp_first_layer_ms - layer * self.fp_diff_per_layer_ms for layer in range(self.num_layers)}
+        self.bp_layers = {layer: layer * self.bp_diff_per_layer_ms for layer in range(self.num_layers)}
+
+    def set_transmission_rate_Gbit_per_sec(self, rate):
+        self.transmission_rate_Gbit_per_sec = rate
+        self.update_tensor_transmittion_time_ms()
+        
+    def update_tensor_transmittion_time_ms(self):
+        self.tensor_transmittion_time_ms = self.packet_size_MB * 8 /self.transmission_rate_Gbit_per_sec
+        self.update_TotalAllReduceTime()
+
+    def update_TotalAllReduceTime(self):
+        # compute + network roundtrip time
+        self.TotalAllReduceTime = self.allReduceComputeTime + self.ApplyLayerGradient + 2* (self.tensor_transmittion_time_ms + self.propagation_delay_ms) 
 
     def calculate_layer_size(self):
         for layer in range(self.num_layers):
@@ -168,7 +197,7 @@ class HorovodSimulator():
     def _init_layer_size_in_packets(self):
         for layer in range(self.num_layers):
             self.layer_size_in_packets[layer] = int(self.layer_size[layer]//self.packet_size_MB) # gradient is always multiples of tensors
-            print(f'layer_size_in_packets[{layer}]: {self.layer_size_in_packets[layer]}')
+            # print(f'layer_size_in_packets[{layer}]: {self.layer_size_in_packets[layer]}')
 
     def enque_FP(self, curr_time, iteration):
         for layer, compute_time in self.fp_layers.items():
@@ -218,7 +247,7 @@ class HorovodSimulator():
             event = heapq.heappop(self.event_queue)
             timestamp, layer, iteration = event.time, event.layer, event.iteration
             self.record[event.name].append(event)
-            print(f'event: {event}')
+            # print(f'event: {event}')
             self.curr_time = timestamp
             if event.name == "FP_computation_done":
                 if self.PerfectPQ_set:
@@ -272,8 +301,8 @@ class HorovodSimulator():
                         print(f'{self.curr_time},Start FP computation in new iteration in FIFO mode,{iteration}')
                         self.record["Start FP computation in new iteration in FIFO mode"].append(Event("Start FP computation in new iteration in FIFO mode", self.curr_time))
                         self.enque_FP(self.curr_time, iteration)
-                    else:
-                        print(f'Have not received all gradients')
+                    # else:
+                    #     print(f'Have not received all gradients')
                 else: # start FP whenever previous FP layer has finished computation and gradients have been received and updated this layer 
                     print(f'self.previous_FP_layer_status[{layer}]: {self.previous_FP_layer_status[layer]}')
                     if self.previous_FP_layer_status[layer]:
@@ -303,7 +332,7 @@ def compute_iteration_time(record, simulator):
             if event.iteration == 1:
                 iteration_time_ms = event.time - iteration_start_time
                 break
-    print(f'iteration_time_ms: {iteration_time_ms}') 
+    # print(f'iteration_time_ms: {iteration_time_ms}') 
     return iteration_time_ms
     
 def compute_slack_time_FIFO(record, simulator):
@@ -320,14 +349,17 @@ def compute_slack_time_FIFO(record, simulator):
             # print(f'layer: {event.layer}, FP_computation_done, {event.time}, fp_layers, {fp_layers[event.layer]}, BP compute done: { BP_computation_done_timestamp[event.layer]}')
             slack_per_layer_in_ms[event.layer] = event.time - simulator.fp_layers[event.layer] - BP_computation_done_timestamp[event.layer]
 
-    print(f'slack_per_layer_in_ms: {slack_per_layer_in_ms}')
+    # print(f'slack_per_layer_in_ms: {slack_per_layer_in_ms}')
     return slack_per_layer_in_ms
 
-horovod_simulator = HorovodSimulator()
-horovod_simulator.run()
+# default_num_layers = 50
+# default_packet_size_MB = 10
+# horovod_simulator = HorovodSimulator(default_num_layers, default_packet_size_MB)
+# horovod_simulator.set_transmission_rate_Gbit_per_sec(50)
+# horovod_simulator.run()
 
-compute_iteration_time(horovod_simulator.record, horovod_simulator)
-compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator)
+# print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
+# print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
 
 
 
