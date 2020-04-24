@@ -3,7 +3,7 @@ import horovod_event_simulator
 import collections
 import matplotlib.pyplot as plt
 import numpy as np
-
+import datetime
 '''
 Simulation setup
 
@@ -27,7 +27,7 @@ input:
                                         default = 10 
     propagation_delay_ms: 
                                         One way propogation delay in ms
-                                        default = 5
+                                        default = 5 - 10 us
     num_layers: 
                                         Number of layers in the target model, default assumes resnet50 v1.5
                                         default = 182
@@ -60,18 +60,6 @@ Test 1:
         network bandwidth vs iteration time
         FIFO and PerfectPQ
 '''
-# default values for inputs
-default_num_layers = 50
-default_packet_size_MB = 10
-
-num_runs = 10
-base_network_bandwidth_Gbit_per_sec = 5 
-bandwidth_increment_Gbit_per_sec = 5
-# key: run_idx, value: network_bandwidth 
-test_network_bandwidth = [base_network_bandwidth_Gbit_per_sec * i for i in range(1, num_runs+1)]
-# key: qdisc mode, FIFO or PerfectPQ, values: records collected from simulation runs
-iteration_result = collections.defaultdict(list)
-
 def autolabel(rects):
     """
     Attach a text label above each bar displaying its height
@@ -81,6 +69,18 @@ def autolabel(rects):
         ax.text(rect.get_x() + rect.get_width()/2., 1.01*height,
                 '%d' % int(height),
                 ha='center', va='bottom')
+# default values for inputs
+default_num_layers = 10
+default_packet_size_MB = 1
+
+num_runs = 10
+base_network_bandwidth_Gbit_per_sec = 5 
+bandwidth_increment_Gbit_per_sec = 5
+# key: run_idx, value: network_bandwidth 
+test_network_bandwidth = [base_network_bandwidth_Gbit_per_sec * i for i in range(1, num_runs+1)]
+# key: qdisc mode, FIFO or PerfectPQ, values: records collected from simulation runs
+iteration_result = collections.defaultdict(list)
+
 for mode in ["FIFO", "PerfectPQ"]:
     for network_bd in test_network_bandwidth:
         simulator = horovod_event_simulator.HorovodSimulator(default_num_layers, default_packet_size_MB)
@@ -112,9 +112,9 @@ autolabel(rects1)
 autolabel(rects2)
 
 fig.set_size_inches(18.5, 10.5)
-# plt.show()
-
-plot_name = f"Network_bandwidth_vs_iteration_time_default_layer_{str(default_num_layers)}_packet_size_{str(default_packet_size_MB)}"
+plt.show(block=False)
+timestamp_str = str(datetime.datetime.now()).replace(" ","_")
+plot_name = f"Network_bandwidth_vs_iteration_time_default_layer_{str(default_num_layers)}_packet_size_{str(default_packet_size_MB)}_{timestamp_str}"
 plt.savefig(f'./simulation_result/{plot_name}')
 
 '''
@@ -147,13 +147,11 @@ for i in range(num_runs):
 ax.set_ylabel('Slack time in ms')
 ax.set_xticks(ind + width * num_runs/2)
 ax.set_xticklabels(("L" + str(x) for x in range(default_num_layers)))
-# ax.legend(rects1[0], "PerfectPQ")
-# autolabel(rects1)
 
 ax.legend((rects[i][0] for i in range(num_runs)), (str(x)+"Gbit/s" for x in test_network_bandwidth))
 ax.set_title("FIFO Network bandwidth vs Slack time")
 fig.set_size_inches(20.5, 12.5)
-# plt.show()
+plt.show(block=False)
 
 # TODO fix savefig, empty graphs saved somehow
 # plot_name = f"Network_bandwidth_vs_slack_time__layer_{str(default_num_layers)}_packet_size_{str(default_packet_size_MB)}"
@@ -164,13 +162,15 @@ Test 3:
         packet_size_MB vs iteration time
         PerfectPQ
 '''
-test_packet_size_MB = [0.1 * runs for runs in range(1, num_runs+1)]
+test_packet_size_MB = [0.01 * runs for runs in range(1, num_runs+1)]
 iteration_result = []
+default_num_layers = 100
 default_network_tranmission_rate_Gbit_per_sec = 50
 for packet_size_MB in test_packet_size_MB:
     simulator = horovod_event_simulator.HorovodSimulator(default_num_layers, packet_size_MB)
     simulator.set_transmission_rate_Gbit_per_sec(default_network_tranmission_rate_Gbit_per_sec)
     simulator.set_PerfectPQ_qdisc()
+    print(f'layer_size_in_packets: {simulator.layer_size_in_packets}')
     simulator.run()
     iteration_time = horovod_event_simulator.compute_iteration_time(simulator.record, simulator)
     iteration_result.append(iteration_time)
@@ -196,7 +196,7 @@ autolabel(rects1)
 
 ax.set_title(f"PerfectPQ Packet Size vs Iteration time (Bandwidth: {default_network_tranmission_rate_Gbit_per_sec} Gbit/s)")
 fig.set_size_inches(18.5, 10.5)
-plt.show()
+# plt.show()
 
 plot_name = f"packet_size_MB_vs_iteration_time__layer_{str(default_num_layers)}_network_{str(default_network_tranmission_rate_Gbit_per_sec)}_packet_size_{file_name_packet_sizes}"
 plt.savefig(f'./simulation_result/{plot_name}')
