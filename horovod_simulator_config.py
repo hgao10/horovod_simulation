@@ -8,28 +8,40 @@ class SimulatorConfig():
     def __init__(self, **kwargs):
         self._init_configs()
         for key, value in kwargs.items():
-            setattr(self, key, value)
-
-        # self.configs = {}
-        # self._init_configs()
-
-        # for key, value in kwargs.items():
-        #     self.configs[key] = value
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                raise ValueError(f"Provided a onfig attribute that doesn's exist: {key}")
 
     def _init_configs(self):
+        self.iteration_barrier = True
         self.qdisc = SchedulingDisc.FIFO
+        # model specific 
+        # smallest transmission unit tensor, could also be packet
         self.packet_size_MB = 10
-            # self.["transmission_rate_Gbit_per_sec"] = 10
-            # self.configs[ConfigVariables.propagation_delay_ms] = 10**(-2) # 10 us
-            # self.configs[ConfigVariables.num_layers] = 50
-            # self.configs[ConfigVariables.compute_time_per_iteration_ms] = 900
-            # self.configs[ConfigVariables.num_workers] = 2
-            # self.configs[ConfigVariables.credit_size] = 1
-            # self.configs[ConfigVariables.num_prirority_queues] = 1
-            # self.configs[ConfigVariables.TotalIteration] = 2
+        self.num_layers = 50
+        # total model is 100MB
+        self.model_size_MB = 100 #MB 
+
+        # network specs
+        self.transmission_rate_Gbit_per_sec = 10
+        self.propagation_delay_ms = 10**(-2) # 10 us
+        
+        # Resnet50 on one P100: 900 ms 
+        self.compute_time_per_iteration_ms = 900
+        self.num_workers = 2
+        self.credit_size = 1
+        self.num_priority_queues = 1
+
+        # Test run specs
+        self.TotalIteration = 2
     
     def __str__(self):
-        return f"qdisc_{self.qdisc.name}_pkt_{self.packet_size_MB}"
+        prop_delay = f"{self.propagation_delay_ms:.3f}".replace(".", "_")
+        # print(f'prop_delay:{prop_delay}')
+        # return f"pkt_{self.packet_size_MB}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}"
+    
+        return f"pkt_{self.packet_size_MB}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}"
 
 if __name__ == "__main__":
     s = SimulatorConfig(**{"qdisc": SchedulingDisc.FIFO})
