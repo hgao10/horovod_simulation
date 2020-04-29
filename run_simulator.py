@@ -220,6 +220,81 @@ Test 4:
         FIFO and PerfectPQ
 '''
 
+'''
+Test 5: 
+        timeline events using Broken Barh
+        FIFO and PerfectPQ
+'''
+
+def test_timeline():
+    test_FIFO_s = SimulatorConfig(**{"num_layers":10, "propagation_delay_ms":5})
+    horovod_simulator = horovod_event_simulator.HorovodSimulator(test_FIFO_s)
+    horovod_simulator.run()
+    print(horovod_event_simulator.compute_iteration_time(horovod_simulator.record, horovod_simulator))
+    print(horovod_event_simulator.compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
+    
+    timeline_event = collections.defaultdict(list)
+    timeline_annotate = collections.defaultdict(list)
+    
+    # calculate per_event duration
+    for key, recs in horovod_simulator.record.items():
+        if key == "FP_computation_done" or key == "Gradients_received":
+            for event in recs:
+                if event.iteration == 1:
+                    timeline_event[key].append((event.start_time, event.duration))
+                    if key == "FP_computation_done":
+                        timeline_annotate[key].append(f"FP[{event.layer}]")
+                    if key == "Gradients_received":
+                        timeline_annotate[key].append(f"GR[{event.layer}]")
+        if key == "BP_computation_done" or key == "Tensor_transimission_done":
+            for event in recs:
+                if event.iteration == 0:
+                    timeline_event[key].append((event.start_time, event.duration))
+                    if key == "BP_computation_done":
+                        timeline_annotate[key].append(f"BP[{event.layer}]")
+                    if key == "Tensor_transimission_done":
+                        timeline_annotate[key].append(f"L[{event.layer}]P[{event.packet_idx}]")
+    
+    print(timeline_event)
+    fig, ax = plt.subplots()
+
+    # colors = ('tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:grey', 'tab:pink')
+    colors = ('tab:blue','tab:orange', 'tab:green', 'tab:purple', 'tab:cyan')
+
+    len_c = len(colors)
+    idx = 0
+
+    num_timelines = len(timeline_event)
+    ylim = [5, (num_timelines + 1) * 10]
+    y_ticks = [ 15 + i*10 for i in range(num_timelines)]
+    # ypos = [(10 * i, 9) for i in range(1, num_timelines+1)]
+    bar_width = 4
+    ypos = [(tick - bar_width/2, bar_width) for tick in y_ticks]
+    yticklabels = []
+    for key, value in timeline_event.items():
+        print(f"barh values [{key}]: {value}")
+        num_intervals = len(value)
+        c = num_intervals//len_c * colors + colors[:num_intervals % len_c] 
+        # ax.broken_barh(value, ypos[idx], facecolors = colors[idx])
+        ax.broken_barh(value, ypos[idx], facecolors = c)
+        idx += 1
+        yticklabels.append(key)
+    ax.set_ylim(ylim)
+
+    timeline_start_time = timeline_event["BP_computation_done"][0][0] - 10
+    timeline_finish_time = timeline_event["FP_computation_done"][-1][0] +  timeline_event["FP_computation_done"][-1][1] + 10
+    xlim = (timeline_start_time, timeline_finish_time)
+    print(f"xlim: {xlim}, ylim: {ylim}")
+    ax.set_xlim(xlim)
+
+    ax.set_yticks(y_ticks)
+    ax.set_yticklabels(yticklabels)
+
+    ax.grid(True)
+    plt.show()
+                    
+    
+
 
 if __name__ == "__main__":
-    test1()
+    test_timeline()

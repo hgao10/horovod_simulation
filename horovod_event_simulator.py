@@ -24,9 +24,11 @@ class Packet():
 
 
 class Event():
-    def __init__(self, name, time):
+    def __init__(self, name, end_time, start_time):
         self.name = name
-        self.time = time
+        self.time = end_time
+        self.start_time = start_time
+        self.duration = self.time - self.start_time
 
     def __lt__(self, other):
         return self.time < other.time
@@ -36,10 +38,10 @@ class Event():
 
 
 class Compute_Event(Event):
-    def __init__(self, time, direction, layer, iteration, state):
+    def __init__(self, time, start_time, direction, layer, iteration, state):
         # Forward or Backward
         name = direction + '_computation_' + state
-        super().__init__(name, time)    
+        super().__init__(name, time, start_time)    
         self.direction = direction 
         self.iteration = iteration
         self.layer = layer
@@ -51,11 +53,11 @@ class Compute_Event(Event):
 
 
 class Transmit_Event(Event):
-    def __init__(self, time, state, iteration, layer, packet_idx):
+    def __init__(self, time,start_time, state, iteration, layer, packet_idx):
         # start or done
         self.state = state
         name = 'Tensor_transimission_' + state 
-        super().__init__(name, time)
+        super().__init__(name, time, start_time)
         self.iteration = iteration
         self.layer = layer
         self.packet_idx = packet_idx
@@ -67,8 +69,8 @@ class Transmit_Event(Event):
 
 
 class Gradients_Event(Event):
-    def __init__(self, time, iteration, layer):
-        super().__init__("Gradients_received", time)
+    def __init__(self, time, start_time, iteration, layer):
+        super().__init__("Gradients_received", time, start_time)
         self.iteration = iteration
         self.layer = layer
     
@@ -176,7 +178,7 @@ class HorovodSimulator():
 
     def enque_FP(self, curr_time, iteration):
         for layer, compute_time in self.fp_layers.items():
-            next_event = Compute_Event(compute_time + curr_time, "FP", layer, iteration, "done")
+            next_event = Compute_Event(compute_time + curr_time, curr_time, "FP", layer, iteration, "done")
             heapq.heappush(self.event_queue, next_event)
             curr_time += compute_time
 
@@ -191,12 +193,12 @@ class HorovodSimulator():
         else:
             return
         # print(f'transimitting packet: iter:{packet.iteration_idx}, layer: {packet.layer_idx}, id: {packet.packet_idx}')
-        next_event = Transmit_Event(self.tensor_transmittion_time_ms + self.curr_time, "done", packet.iteration_idx, packet.layer_idx, packet.packet_idx)
+        next_event = Transmit_Event(self.tensor_transmittion_time_ms + self.curr_time, self.curr_time,"done", packet.iteration_idx, packet.layer_idx, packet.packet_idx)
         heapq.heappush(self.event_queue, next_event)
         if packet.packet_idx == self.layer_size_in_packets[packet.layer_idx] - 1: # last packet in the layer, assume that there is no OOO transmission
             if not self.increment_iteration_status[packet.iteration_idx+1]: # any layer that finishes transmitting all gradients will increament the iteration for that layer
                 packet.iteration_idx += 1
-            next_event = Gradients_Event(self.TotalAllReduceTime + self.curr_time, packet.iteration_idx, packet.layer_idx)
+            next_event = Gradients_Event(self.TotalAllReduceTime + self.curr_time, self.curr_time,packet.iteration_idx, packet.layer_idx)
             heapq.heappush(self.event_queue, next_event)
         self.InTransit = True
 
@@ -217,7 +219,7 @@ class HorovodSimulator():
     def run(self):
         # enque all FP events for the first iteration where there is no blocking
         self.curr_time = 0
-        self.record["Start FP"].append(Event("Start FP", self.curr_time))
+        self.record["Start FP"].append(Event("Start FP", self.curr_time, self.curr_time))
         self.enque_FP(self.curr_time, 0)
 
         ''' main event loop '''
@@ -240,15 +242,15 @@ class HorovodSimulator():
                             self.previous_FP_layer_status[layer+1] = True
                             if self.gradient_received[layer+1]:
                                 print(f"gradient_received[{layer+1}]: {self.gradient_received[layer+1]}")
-                                next_event = Compute_Event(self.fp_layers[layer+1] + self.curr_time, "FP", layer+1, iteration, "done")
+                                next_event = Compute_Event(self.fp_layers[layer+1] + self.curr_time, self.curr_time, "FP", layer+1, iteration, "done")
                                 heapq.heappush(self.event_queue, next_event)
                                 # heapq.heappush(self.event_queue, [self.fp_layers[layer+1] + self.curr_time, "FP_computation_done", layer+1,  iteration])
                         self.gradient_received[layer] = False
                 # no need to handle self.FIFO_set case cause all FP events have been pushed once at the start of the new iteration 
                 if layer == self.config.num_layers - 1: #last layer
                     # self.record.append([self.curr_time, "Start BP"])
-                    self.record["Start BP"].append(Event("Start BP", self.curr_time))
-                    next_event = Compute_Event(self.bp_layers[layer]+self.curr_time, "BP", layer, iteration, "done")
+                    self.record["Start BP"].append(Event("Start BP", self.curr_time, self.curr_time))
+                    next_event = Compute_Event(self.bp_layers[layer]+self.curr_time, self.curr_time,"BP", layer, iteration, "done")
                     heapq.heappush(self.event_queue, next_event)
                     # heapq.heappush(self.event_queue,[self.bp_layers[layer]+self.curr_time,"BP_computation_done", layer, iteration] )
 
@@ -263,7 +265,7 @@ class HorovodSimulator():
                 # start BP for next layer
                 if layer > 0:
                     print(f"Debug: add next BP layer to the queue: {self.bp_layers[layer-1]+self.curr_time}")
-                    next_event = Compute_Event(self.bp_layers[layer-1]+self.curr_time, "BP", layer-1, iteration, "done")
+                    next_event = Compute_Event(self.bp_layers[layer-1]+self.curr_time, self.curr_time, "BP", layer-1, iteration, "done")
                     heapq.heappush(self.event_queue, next_event)
                     # heapq.heappush(self.event_queue,[self.bp_layers[layer]+self.curr_time,"BP_computation_done", layer-1, iteration] )
 
@@ -281,7 +283,7 @@ class HorovodSimulator():
                 if self.config.iteration_barrier == True:
                     if sum(self.gradient_received.values()) == self.config.num_layers: # all gradients have received
                         print(f'{self.curr_time},Start FP computation in new iteration in FIFO mode,{iteration}')
-                        self.record["Start FP computation in new iteration in FIFO mode"].append(Event("Start FP computation in new iteration in FIFO mode", self.curr_time))
+                        self.record["Start FP computation in new iteration in FIFO mode"].append(Event("Start FP computation in new iteration in FIFO mode", self.curr_time, self.curr_time))
                         self.enque_FP(self.curr_time, iteration)
                     # else:
                     #     print(f'Have not received all gradients')
@@ -293,8 +295,8 @@ class HorovodSimulator():
                         compute_time = self.fp_layers[layer]
                         if layer == 0:
                             print(f'{self.curr_time},Start FP computation in new iteration in Perfect PQ mode,{iteration}')
-                            self.record["Start FP computation in new iteration in Perfect PQ mode"].append(Event("Start FP computation in new iteration in Perfect PQ mode", self.curr_time))
-                        next_event = Compute_Event(compute_time+self.curr_time, "FP", layer, iteration, "done")
+                            self.record["Start FP computation in new iteration in Perfect PQ mode"].append(Event("Start FP computation in new iteration in Perfect PQ mode", self.curr_time,self.curr_time))
+                        next_event = Compute_Event(compute_time+self.curr_time, self.curr_time,"FP", layer, iteration, "done")
                         heapq.heappush(self.event_queue, next_event)
                         # heapq.heappush(self.event_queue, [compute_time+self.curr_time, "FP_computation_done", layer, iteration])
             else:
@@ -340,31 +342,41 @@ def compute_slack_time_FIFO(record, simulator):
 
 
 if __name__ == "__main__":
-    test_FIFO_s = SimulatorConfig(**{"num_layers":10, "propagation_delay_ms":5})
-    horovod_simulator = HorovodSimulator(test_FIFO_s)
-    horovod_simulator.run()
-    print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
-    print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
+    def test1():
+        test_FIFO_s = SimulatorConfig(**{"num_layers":10, "propagation_delay_ms":5})
+        horovod_simulator = HorovodSimulator(test_FIFO_s)
+        horovod_simulator.run()
+        print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
+        print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
 
-    test_PerfectPQ_s = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "num_layers":10, "propagation_delay_ms":5})
-    horovod_simulator = HorovodSimulator(test_PerfectPQ_s)
-    horovod_simulator.run()
-    print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
-    print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
-
-    network_bd = 50
-
-    test_FIFO_s = SimulatorConfig(**{"qidsc": SchedulingDisc.FIFO, "transmission_rate_Gbit_per_sec": network_bd})
-    horovod_simulator = HorovodSimulator(test_FIFO_s)
-    horovod_simulator.run()
-    print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
-    print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
+    def test2():
+        test_PerfectPQ_s = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "num_layers":10, "propagation_delay_ms":5})
+        horovod_simulator = HorovodSimulator(test_PerfectPQ_s)
+        horovod_simulator.run()
+        print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
+        print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
 
 
-    test_PerfectPQ_s = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "transmission_rate_Gbit_per_sec": network_bd })    
-    horovod_simulator = HorovodSimulator(test_PerfectPQ_s)
-    horovod_simulator.run()
-    print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
-    print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
+    def test3():
+        network_bd = 50
+
+        test_FIFO_s = SimulatorConfig(**{"qidsc": SchedulingDisc.FIFO, "transmission_rate_Gbit_per_sec": network_bd})
+        horovod_simulator = HorovodSimulator(test_FIFO_s)
+        horovod_simulator.run()
+        print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
+        print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
+
+
+    def test4():
+        network_bd = 50
+
+        test_PerfectPQ_s = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "transmission_rate_Gbit_per_sec": network_bd })    
+        horovod_simulator = HorovodSimulator(test_PerfectPQ_s)
+        horovod_simulator.run()
+        print(compute_iteration_time(horovod_simulator.record, horovod_simulator))
+        print(compute_slack_time_FIFO(horovod_simulator.record, horovod_simulator))
+
+
+    test1()    
 
 
