@@ -310,25 +310,25 @@ Test 5:
         timeline events using Broken Barh
         FIFO and PerfectPQ
 '''
-def test_timeline():
-    # test_FIFO_s = SimulatorConfig(**{"num_layers":10, "propagation_delay_ms":5})
-    # horovod_simulator = horovod_event_simulator.HorovodSimulator(test_FIFO_s)
+config1 = SimulatorConfig(**{"num_layers":10, "propagation_delay_ms":5})
+config2 = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "num_layers":10, "propagation_delay_ms":5})
 
-    # test_PerfectPQ_s = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "num_layers":10, "propagation_delay_ms":5})
-    # horovod_simulator = horovod_event_simulator.HorovodSimulator(test_PerfectPQ_s)
+config_FIFO = []
+config_PerfectPQ = []
+for network_bd in [1, 3]:
+    config_FIFO.append(SimulatorConfig(**{"transmission_rate_Gbit_per_sec": 1 }))
+    config_PerfectPQ.append(SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "transmission_rate_Gbit_per_sec": network_bd}))
 
-    network_bd = 5
-    # config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "transmission_rate_Gbit_per_sec": network_bd }) 
-    config = SimulatorConfig(**{"num_layers":100, "min_packet_per_layer":4,"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "transmission_rate_Gbit_per_sec": network_bd }) 
+def test_timeline(config, plt_block, savefig):
 
     horovod_simulator = horovod_event_simulator.HorovodSimulator(config)
-
     r = run_test(horovod_simulator)
     timeline = build_timeline(r, horovod_simulator)
-    plot_timeline(timeline, horovod_simulator, plt_block=True, savefig=False)
+    plot_timeline(timeline, horovod_simulator, plt_block=plt_block, savefig=savefig)
+
 
 if __name__ == "__main__":
-    # test_timeline()
     # test1()
     # test2()
-    test3()
+    # test3()
+    test_timeline(config_PerfectPQ[0], True, False)
