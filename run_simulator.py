@@ -348,6 +348,6 @@ if __name__ == "__main__":
     # config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100})
     # test_ringallreduce_timeline(config, True, False)
 
-    config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100, "transmission_rate_Gbit_per_sec": 1})
-    test_ringallreduce_timeline(config, True, False)
+    config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReducePQ, "num_layers":100, "transmission_rate_Gbit_per_sec": 0.1})
+    test_ringallreduce_timeline(config, False, True)
  
