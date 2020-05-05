@@ -138,7 +138,7 @@ def plot_timeline(timeline_event,horovod_simulator, plt_block=True, savefig=True
     fig.set_size_inches(20.5, 12.5)
     plt.show(block=plt_block)
 
-    plot_name = f"event_timeline_qdisc_{horovod_simulator.config.qdisc.name}_{horovod_simulator.config}_{curr_time}"
+    plot_name = f"event_timeline_qdisc_{horovod_simulator.config}_{curr_time}"
     print(f"config: {horovod_simulator.config}, curr_time: {curr_time}")
     
     if savefig:
@@ -343,7 +343,11 @@ if __name__ == "__main__":
     # test3()
     # test_timeline(config_PerfectPQ[0], True, False)
     # config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce,"num_layers":10, "propagation_delay_ms":5})
-    config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100})
-    test_ringallreduce_timeline(config, False, True)
-    config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100})
-    test_ringallreduce_timeline(config, False, True)
+    # config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100, "transmission_rate_Gbit_per_sec": 1})
+    # test_ringallreduce_timeline(config, True, False)
+    # config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100})
+    # test_ringallreduce_timeline(config, True, False)
+
+    config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100, "transmission_rate_Gbit_per_sec": 1})
+    test_ringallreduce_timeline(config, True, False)
+ 
