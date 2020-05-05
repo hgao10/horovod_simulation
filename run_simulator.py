@@ -7,6 +7,7 @@ import datetime
 from enum import Enum
 from horovod_simulator_config import SimulatorConfig, SchedulingDisc
 import typing
+import ringallreduce_simulator
 '''
 Simulation setup
 
@@ -81,7 +82,7 @@ def build_timeline(record, horovod_simulator):
                         # key = key + f"[{event.layer}]"
                         timeline_event[key+f"[{event.layer}]"].append((event.start_time, event.duration))
                         # timeline_annotate[key].append(f"GR[{event.layer}]")
-        if key == "BP_computation_done" or key == "Tensor_transimission_done":
+        if key == "BP_computation_done" or key == "Tensor_transimission_done" or key == "RingAllReduce_done":
             for event in recs:
                 if event.iteration == 0:
                     # timeline_event[key].append((event.start_time, event.duration))
@@ -92,6 +93,9 @@ def build_timeline(record, horovod_simulator):
                         # key = key + f"[{event.layer}]"
                         timeline_event[key+f"[{event.layer}]"].append((event.start_time, event.duration))
                         timeline_annotate[key].append(f"L[{event.layer}]P[{event.packet_idx}]")
+                    if key == "RingAllReduce_done":
+                        timeline_event[key+f"[{event.layer}]"].append((event.start_time, event.duration))
+
     return timeline_event    
 
 def plot_timeline(timeline_event,horovod_simulator, plt_block=True, savefig=True):    
@@ -326,9 +330,20 @@ def test_timeline(config, plt_block, savefig):
     timeline = build_timeline(r, horovod_simulator)
     plot_timeline(timeline, horovod_simulator, plt_block=plt_block, savefig=savefig)
 
+def test_ringallreduce_timeline(config, plt_block, savefig):
+
+    horovod_simulator = ringallreduce_simulator.HorovodSimulator(config)
+    r = run_test(horovod_simulator)
+    timeline = build_timeline(r, horovod_simulator)
+    plot_timeline(timeline, horovod_simulator, plt_block=plt_block, savefig=savefig)
 
 if __name__ == "__main__":
     # test1()
     # test2()
     # test3()
-    test_timeline(config_PerfectPQ[0], True, False)
+    # test_timeline(config_PerfectPQ[0], True, False)
+    # config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce,"num_layers":10, "propagation_delay_ms":5})
+    config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100})
+    test_ringallreduce_timeline(config, False, True)
+    config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100})
+    test_ringallreduce_timeline(config, False, True)

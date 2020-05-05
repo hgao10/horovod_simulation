@@ -4,6 +4,7 @@ import heapq
 from horovod_simulator_config import SimulatorConfig, SchedulingDisc
 from utils.logger import get_logger
 import typing
+from queue import PriorityQueue
 
 class Packet():
     def __init__(self, iteration_idx, layer_idx, packet_idx, packet_size_MB):
@@ -63,12 +64,21 @@ class Transmit_Event(Event):
         self.iteration = iteration
         self.layer = layer
         self.packet_idx = packet_idx
-        # Start or Finish
-        self.state = state
     
     def __str__(self):
         return (f'Time_ms, {self.time}, Event, {self.name}, Iter, {self.iteration}, Layer, {self.layer}, Packet_idx, {self.packet_idx}')
 
+class RingAllReduce_Event(Event):
+    def __init__(self, time, start_time, state, iteration, priority):
+        self.state = state
+        name = "RingAllReduce_" + state
+        super().__init__(name, time, start_time)
+        self.iteration = iteration
+        self.priority = priority
+        self.layer = priority
+
+    def __str__(self):
+        return (f'Time_ms, {self.time}, Event, {self.name}, Iter, {self.iteration}, Priority, {self.priority}')
 
 
 class Gradients_Event(Event):
@@ -85,33 +95,75 @@ class Tensor():
         self.layer = layer
         self.size = size
         
-class TensorFusion():
+    def __lt__(self, other):
+        return self.layer < other.layer 
+        
+class SingleReduce():
     def __init__(self):
         self.tensors = [] # a list of tensors
-        self.priority = min(self.tensors)
+        self.priority = 0
         self.size = 0
-    
+        self.progress = 0 # 2(n-1) times where n is the number of workers
+        self.gradient_computed_status = {}
+        self.logger = get_logger("SingleReduce", "DEBUG")
+        self.iteration = 0
     def add_tensor(self, tensor):
         self.tensors.append(tensor)
         self.size += tensor.size
+        # update priority
+        self.priority = min(self.tensors, key=lambda k:k.layer).layer
+        self.logger.debug(f"add tensor {tensor.layer}")
+        self.logger.debug(f"SingleReduce priority: {self.priority}")
+        self.gradient_computed_status[tensor.layer] = False
+    
+    def set_gradient_available(self, layer):
+        self.gradient_computed_status[layer] = True
+
+    def ready_to_be_sent(self):
+        if sum(self.gradient_computed_status.values()) == len(self.gradient_computed_status):
+            return True
+        return False
+    
+    def clear_compute_status(self):
+        for key in self.gradient_computed_status.keys():
+            self.gradient_computed_status[key] = False
+        self.logger.debug("Clearing gradient compute status")
     
     def __lt__(self, other):
         return self.priority < other.priority 
 
+
 class RingAllReduce():
     # tensors: key layer, value = size in MB
-    def __init__(self, fusion_buffer_size, num_partitions, tensors: typing.Dict) -> None:
-        self.fusion_buffer_size = fusion_buffer_size
-        self.num_partitions = num_partitions
-        self.fusion_map = {} 
+    def __init__(self, num_partitions) -> None:
+        self.num_partitions = num_partitions #num of workers
+        # key: priority of each reduce operation, value: layer of tensors
+        self.reducelists = {} 
+        self.logger = get_logger("RingAllReduce", "DEBUG")
+        self.fusion_reduce_lookup = {}
 
-    def map_tensors(self):
-        # operation[i] = (tensor1: )
+    def map_tensors(self, tensors: typing.List, fusion_buffer_size_MB):
         # map tensor i to one ring allreduce operation j 
-        fusion = TensorFusion()
-        for layer, tensor_size in self.tensors.items():
-            if add_tensor_size < self.fusion_buffer_size:
+        one_reduce = SingleReduce()
+        added_t_count = 0
+        # TODO: refactor to be more straightforward! 
+        while added_t_count < len(tensors):
+            tensor = tensors[added_t_count]
+            if one_reduce.size + tensor.size < fusion_buffer_size_MB:
+                one_reduce.add_tensor(tensor)
+                added_t_count += 1
+                if added_t_count < len(tensors) - 1:
+                    # add last reduce operation to the list if its the last tensor       
+                    continue
 
+            self.logger.debug(f"one_reduce size {one_reduce.size} tensor.size {tensor.size}")
+            if one_reduce.size == 0 or one_reduce.size == 0.0:
+                self.logger.error("Reduce operation is of size ZERO")
+            for t in one_reduce.tensors:
+                self.logger.debug(f"Tensor {t.layer} in reduce {one_reduce.priority} ")
+                self.fusion_reduce_lookup[t.layer] = one_reduce
+            self.reducelists[one_reduce.priority] = one_reduce
+            one_reduce = SingleReduce()
 
 class HorovodSimulator():
     def __init__(self, config):
@@ -158,10 +210,19 @@ class HorovodSimulator():
         self.layer_size = {}
         # number of packets to be sent/received per layer  
         self.layer_size_in_packets = {}
-        self.calculate_layer_size()        
+        self.calculate_layer_size() 
+        self.tensors = []
+        self.construct_tensors()   
+        self.curr_fusion = []
+
         # self._init_layer_size_in_packets()
         self.logger.debug(f"layer_size_in packets: {self.layer_size_in_packets}")
         self.check_layer_size_in_packets()
+
+        # initialize ring all reduce operations
+        self.ringallreduce = RingAllReduce(self.config.num_workers)
+        self.ringallreduce.map_tensors(self.tensors, self.config.fusion_buffer_size_MB)
+        self.ringallreduce_pq = PriorityQueue()
 
         # Test run specs
         self.config.TotalIteration = 2
@@ -186,13 +247,7 @@ class HorovodSimulator():
         self.tensor_transmittion_time_ms = self.config.packet_size_MB * 8 /self.config.transmission_rate_Gbit_per_sec 
         self.logger.debug(f"tensor transmission time: {self.tensor_transmittion_time_ms}")
         #TODO simplied version, each worker sends the entire amount of gradient per layer at once instead of gradient/num_workers for num_workers times, refer to ring allreduce paper
-        
-        # each time sends 
-        self.partition_size = self.layer_size_in_packets[layer] / self.config.num_workers
-
-        # num_ring_cycles = 2 * (self.config.num_workers - 1)
-        # each cycle: transmitting tensor + reduce_tensor_on_parts_received
- 
+         
         # parameter server model, send all tensors at once and wait for the PS respond back thus * 2 
         self.TotalAllReduceTime = self.allReduceComputeTime_ms + self.ApplyLayerGradient_ms + 2* (self.tensor_transmittion_time_ms + self.config.propagation_delay_ms) # compute + network roundtrip time
         self.logger.debug(f"totalallreducetime: {self.TotalAllReduceTime}")
@@ -202,6 +257,7 @@ class HorovodSimulator():
         self.priority_queues = {}
         # TODO incorperate credit_size in non perfect priority queue situation where packets can only be pre-empted if there is enough credit left 
         self.config.credit_size = 1
+
 
     def check_layer_size_in_packets(self):
         for layer, num in self.layer_size_in_packets.items():
@@ -241,15 +297,17 @@ class HorovodSimulator():
             else:
                 self.layer_size[layer] = 12 * self.min_layer_size_MB
                 self.layer_size_in_packets[layer] = 12 * self.config.min_packet_per_layer
+    
+    def construct_tensors(self):
+        for layer, tensor_size in self.layer_size.items():
+            self.logger.debug(f"construct tensor of layer {layer}, size {tensor_size}")
+            t = Tensor(layer, tensor_size)
+            self.tensors.append(t)
+
     def _init_priority_queues(self):
             for i in range(self.config.num_priority_queues):
                 self.priority_queues[i] = collections.deque() 
     
-    # def _init_layer_size_in_packets(self):
-    #     for layer in range(self.config.num_layers):
-    #         self.layer_size_in_packets[layer] = int(self.layer_size[layer]//self.config.packet_size_MB) # gradient is always multiples of tensors
-    #         # self.logger.debug(f'layer_size_in_packets[{layer}]: {self.layer_size_in_packets[layer]}')
-
     def enque_FP(self, curr_time, iteration):
         for layer, compute_time in self.fp_layers.items():
             next_event = Compute_Event(compute_time + curr_time, curr_time, "FP", layer, iteration, "done")
@@ -264,8 +322,29 @@ class HorovodSimulator():
         elif self.config.qdisc == SchedulingDisc.PerfectPQ and self.PerfectPQ_transmission_queue:
             packet = heapq.heappop(self.PerfectPQ_transmission_queue)
             self.logger.debug(f"Debug, pop packet off PerfectPQ_transmission_queue: {packet}")
-        else:
-            return
+        elif self.config.qdisc == SchedulingDisc.RingAllReduce:
+            self.logger.debug(f"transmit tensor for RingallReduce")
+            self.logger.debug(f"self.ringallreduce_pq.empty {self.ringallreduce_pq.empty()}")
+            if not self.ringallreduce_pq.empty():
+                self.logger.debug(f"ringallreduce_pq is not empty: {self.ringallreduce_pq}")
+                fusion_reduce = self.ringallreduce_pq.get(block=False)
+                self.logger.debug(f"fusion_reduce.size {fusion_reduce.size}")
+                partion_size_MB = fusion_reduce.size/self.config.num_workers
+                self.logger.debug(f"going to send fusion reduce with priority {fusion_reduce.priority}, p size: {partion_size_MB}")
+                # assuming there is zero computation time to apply the partial gradients
+                # artifically included propagation delay to transmission time to indicate the next transmission can't start until gradients from 
+                # neighbors has been received which includes propagation time
+                one_iteration_transmit_partition_duration_ms = partion_size_MB * 8/self.config.transmission_rate_Gbit_per_sec + self.config.propagation_delay_ms
+                # receive_one_partition_time_ms = one_iteration_transmit_partition_duration_ms + self.config.propagation_delay_ms 
+                total_transmit_fusion_time_ms = 2 * (self.config.num_workers - 1) * one_iteration_transmit_partition_duration_ms 
+                
+                self.logger.debug(f"add next ringallreduce event {total_transmit_fusion_time_ms + self.curr_time}")
+                next_event = RingAllReduce_Event(total_transmit_fusion_time_ms + self.curr_time, self.curr_time, "done", fusion_reduce.iteration, fusion_reduce.priority )
+                
+                heapq.heappush(self.event_queue, next_event)
+                self.InTransit = True
+            self.logger.debug(f"transmit_tensor in RingAllReduce")
+            return 
         # self.logger.debug(f'transimitting packet: iter:{packet.iteration_idx}, layer: {packet.layer_idx}, id: {packet.packet_idx}')
         next_event = Transmit_Event(self.tensor_transmittion_time_ms + self.curr_time, self.curr_time,"done", packet.iteration_idx, packet.layer_idx, packet.packet_idx)
         heapq.heappush(self.event_queue, next_event)
@@ -305,7 +384,7 @@ class HorovodSimulator():
             self.curr_time = timestamp
             if event.name == "FP_computation_done":
                 # if self.PerfectPQ_set:
-                if self.config.qdisc == SchedulingDisc.PerfectPQ:
+                if self.config.qdisc == SchedulingDisc.PerfectPQ or self.config.qdisc == SchedulingDisc.RingAllReduce:
                     if iteration != 0: # all FP events have been pushed for iteration 0
                         # 2nd iteration onwards
                         # restore previous FP compute status to not ready for next iteration
@@ -330,21 +409,68 @@ class HorovodSimulator():
 
             elif (event.name == "BP_computation_done"):
                 # ready to send gradient
-                num_packets = self.layer_size_in_packets[layer]
-                # transmission_queue.append([num_packets, layer])
-                self.add_to_transmission_queue(num_packets, layer, iteration)
-                # self.logger.debug(self.PerfectPQ_set_transmission_queue)
+                # look up which reduce operation this layer belongs to
+                if self.config.qdisc == SchedulingDisc.RingAllReduce:
+                    if iteration == self.config.TotalIteration - 1 :
+                        self.logger.debug(f'break out of while loop : iteration: {iteration}')
+                        # exit while loops
+                        break
+                    fusion_reduce = self.ringallreduce.fusion_reduce_lookup[layer]
+                    fusion_reduce.iteration = iteration
+                    self.logger.debug(f"BP computation done for ring all reduce {fusion_reduce.priority} layer {layer}")
+                    fusion_reduce.set_gradient_available(layer)
+                    # if all tensors in the reduce operation are computed, move it to allreduce priority queue
+                    if fusion_reduce.ready_to_be_sent():
+                        self.ringallreduce_pq.put(fusion_reduce)
+                        fusion_reduce.clear_compute_status()
+
+
+                elif self.config.qdisc == SchedulingDisc.PerfectPQ or self.config.qdisc == SchedulingDisc.FIFO:
+                    num_packets = self.layer_size_in_packets[layer]
+                    self.add_to_transmission_queue(num_packets, layer, iteration)
+
                 if not self.InTransit: # nothing is being transimitted 
                     self.transmit_tensor()
+
                 # start BP for next layer
                 if layer > 0:
                     self.logger.debug(f"Debug: add next BP layer to the queue: {self.bp_layers[layer-1]+self.curr_time}")
                     next_event = Compute_Event(self.bp_layers[layer-1]+self.curr_time, self.curr_time, "BP", layer-1, iteration, "done")
                     heapq.heappush(self.event_queue, next_event)
-                    # heapq.heappush(self.event_queue,[self.bp_layers[layer]+self.curr_time,"BP_computation_done", layer-1, iteration] )
 
             elif event.name == "Tensor_transimission_done":
                 self.InTransit = False
+                self.transmit_tensor()
+            
+            elif event.name == "RingAllReduce_done":
+                self.InTransit = False
+                # set gradients received for layers included in the ringallreduce to ready
+                received_layers = []
+                for tensor in self.ringallreduce.reducelists[event.priority].tensors:
+                    self.logger.debug(f"RingAllReduce done: set gradient received [{tensor.layer}]")
+                    self.gradient_received[tensor.layer] = True
+                    received_layers.append(tensor.layer)
+
+                received_layers.sort()
+                # only need to kickstart the lowest layer of FP in the received fusion, the rest will be evoked once the lower FP is done
+                layer = received_layers[0]
+                if self.config.iteration_barrier == True:
+                    if sum(self.gradient_received.values()) == self.config.num_layers: # all gradients have received
+                        self.logger.debug(f'{self.curr_time},Start FP computation in new iteration in FIFO mode,{iteration}')
+                        self.record["Start FP computation in new iteration in FIFO mode"].append(Event("Start FP computation in new iteration in FIFO mode", self.curr_time, self.curr_time))
+                        self.enque_FP(self.curr_time, iteration)
+                    else:
+                        self.logger.debug(f'Have not received all gradients')
+                else: # start FP whenever previous FP layer has finished computation and gradients have been received and updated this layer                 
+                    if self.previous_FP_layer_status[layer]:
+                        self.logger.debug(f"start FP layer computation: {layer}")
+                        compute_time = self.fp_layers[layer]
+                        if layer == 0:
+                            self.logger.debug(f'{self.curr_time},Start FP computation in new iteration in Perfect PQ mode,{iteration}')
+                            self.record["Start FP computation in new iteration in RingAllReduce mode"].append(Event("Start FP computation in new iteration in RingAllReduce mode", self.curr_time,self.curr_time))
+                        next_event = Compute_Event(compute_time+self.curr_time, self.curr_time,"FP", layer, iteration + 1, "done")
+                        heapq.heappush(self.event_queue, next_event)                    
+
                 self.transmit_tensor()
             
             elif event.name == "Gradients_received":
@@ -359,8 +485,8 @@ class HorovodSimulator():
                         self.logger.debug(f'{self.curr_time},Start FP computation in new iteration in FIFO mode,{iteration}')
                         self.record["Start FP computation in new iteration in FIFO mode"].append(Event("Start FP computation in new iteration in FIFO mode", self.curr_time, self.curr_time))
                         self.enque_FP(self.curr_time, iteration)
-                    # else:
-                    #     self.logger.debug(f'Have not received all gradients')
+                    else:
+                        self.logger.debug(f'Have not received all gradients')
                 else: # start FP whenever previous FP layer has finished computation and gradients have been received and updated this layer 
                     self.logger.debug(f'self.previous_FP_layer_status[{layer}]: {self.previous_FP_layer_status[layer]}')
                     if self.previous_FP_layer_status[layer]:
@@ -420,6 +546,11 @@ def compute_iteration_and_slack(record, simulator):
     compute_iteration_time(record, simulator)
     compute_slack_time_FIFO(record, simulator)
 
+def test_run(config):
+    horovod_simulator = HorovodSimulator(config)
+    horovod_simulator.run()
+    compute_iteration_and_slack(horovod_simulator.record, horovod_simulator)
+
 
 if __name__ == "__main__":
     def test1():
@@ -452,6 +583,12 @@ if __name__ == "__main__":
         horovod_simulator.run()
         compute_iteration_and_slack(horovod_simulator.record, horovod_simulator)
 
-    test1()    
+    
+    def test_ring_allreduce():
+        config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce,"num_layers":10, "propagation_delay_ms":5})
+        test_run(config)
+    
+    # test1()
+    test_ring_allreduce()    
 
 

@@ -3,6 +3,7 @@ from utils.logger import get_logger
 class SchedulingDisc(Enum):
     PerfectPQ = 0
     FIFO = 1
+    RingAllReduce = 2
 
 class SimulatorConfig():
     def __init__(self, **kwargs):
@@ -11,6 +12,11 @@ class SimulatorConfig():
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+                if key == "num_layers" or key == "model_size_MB" or key == "min_packet_per_layer":
+                    self.min_layer_size_MB = 2 * self.model_size_MB / ( 9 * self.num_layers) 
+                    self.packet_size_MB = self.min_layer_size_MB / self.min_packet_per_layer  
+                    self.fusion_buffer_size_MB = self.min_layer_size_MB * 12 + 1
+                    self.logger.debug(f"fusion buffer size: {self.fusion_buffer_size_MB}, key {key}")
             else:
                 raise ValueError(f"Provided a onfig attribute that doesn's exist: {key}")
 
@@ -19,11 +25,16 @@ class SimulatorConfig():
         self.qdisc = SchedulingDisc.FIFO
         # model specific 
         # smallest transmission unit tensor, could also be packet
-        self.min_packet_per_layer = 10
+        self.min_packet_per_layer = 1
         self.packet_size_MB = 0.44/self.min_packet_per_layer
         self.num_layers = 50
         # total model is 100MB
         self.model_size_MB = 100 #MB 
+        # self.min_layer_size_MB = 2 * self.model_size_MB / ( 9 * self.num_layers) # 0.44 if layer = 50
+
+        # ring allreduce
+        # could be a parameter determined on fly on network conditions
+        self.fusion_buffer_size_MB = 0.44 * 12 + 1# set to the largest layer first
 
         # network specs
         self.transmission_rate_Gbit_per_sec = 10
@@ -41,7 +52,6 @@ class SimulatorConfig():
     def __str__(self):
         prop_delay = f"{self.propagation_delay_ms:.3f}".replace(".", "_")
         # print(f'prop_delay:{prop_delay}')
-        # return f"pkt_{self.packet_size_MB}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}"
         packet_size_MB_str = f"{self.packet_size_MB:.4f}".replace(".", "_")
         return f"pkt_{packet_size_MB_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}"
 

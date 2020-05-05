@@ -3,7 +3,7 @@ import time
 import heapq
 from horovod_simulator_config import SimulatorConfig, SchedulingDisc
 from utils.logger import get_logger
-
+import typing
 
 class Packet():
     def __init__(self, iteration_idx, layer_idx, packet_idx, packet_size_MB):
@@ -125,7 +125,7 @@ class HorovodSimulator():
         self.layer_size = {}
         # number of packets to be sent/received per layer  
         self.layer_size_in_packets = {}
-        self.calculate_layer_size()        
+        self.calculate_layer_size()       
         # self._init_layer_size_in_packets()
         self.logger.debug(f"layer_size_in packets: {self.layer_size_in_packets}")
         self.check_layer_size_in_packets()
@@ -153,6 +153,7 @@ class HorovodSimulator():
         self.tensor_transmittion_time_ms = self.config.packet_size_MB * 8 /self.config.transmission_rate_Gbit_per_sec 
         self.logger.debug(f"tensor transmission time: {self.tensor_transmittion_time_ms}")
         #TODO simplied version, each worker sends the entire amount of gradient per layer at once instead of gradient/num_workers for num_workers times, refer to ring allreduce paper
+        # parameter server model, send all tensors at once and wait for the PS respond back thus * 2 
         self.TotalAllReduceTime = self.allReduceComputeTime + self.ApplyLayerGradient + 2* (self.tensor_transmittion_time_ms + self.config.propagation_delay_ms) # compute + network roundtrip time
         self.logger.debug(f"totalallreducetime: {self.TotalAllReduceTime}")
 
