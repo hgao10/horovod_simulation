@@ -53,7 +53,10 @@ class SimulatorConfig():
         prop_delay = f"{self.propagation_delay_ms:.3f}".replace(".", "_")
         # print(f'prop_delay:{prop_delay}')
         packet_size_MB_str = f"{self.packet_size_MB:.4f}".replace(".", "_")
-        return f"pkt_{packet_size_MB_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}"
+        if self.qdisc == SchedulingDisc.RingAllReduce:
+            fusion_buffer_str = f"{self.fusion_buffer_size_MB:.2f}".replace(".", "_")
+            return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_fusbuf_{fusion_buffer_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{self.transmission_rate_Gbit_per_sec}" 
+        return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_pkt_{packet_size_MB_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{self.transmission_rate_Gbit_per_sec}"
 
 if __name__ == "__main__":
     s = SimulatorConfig(**{"qdisc": SchedulingDisc.FIFO})
