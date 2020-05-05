@@ -3,7 +3,8 @@ from utils.logger import get_logger
 class SchedulingDisc(Enum):
     PerfectPQ = 0
     FIFO = 1
-    RingAllReduce = 2
+    RingAllReducePQ = 2
+    RingAllReduceFIFO = 3
 
 class SimulatorConfig():
     def __init__(self, **kwargs):
@@ -52,11 +53,15 @@ class SimulatorConfig():
     def __str__(self):
         prop_delay = f"{self.propagation_delay_ms:.3f}".replace(".", "_")
         # print(f'prop_delay:{prop_delay}')
+        if self.transmission_rate_Gbit_per_sec < 1:
+            bw = f"{self.transmission_rate_Gbit_per_sec:.2f}".replace(".", "_")
+        else:
+            bw = self.transmission_rate_Gbit_per_sec
         packet_size_MB_str = f"{self.packet_size_MB:.4f}".replace(".", "_")
-        if self.qdisc == SchedulingDisc.RingAllReduce:
+        if self.qdisc == SchedulingDisc.RingAllReduceFIFO or self.qdisc == SchedulingDisc.RingAllReducePQ:
             fusion_buffer_str = f"{self.fusion_buffer_size_MB:.2f}".replace(".", "_")
-            return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_fusbuf_{fusion_buffer_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{self.transmission_rate_Gbit_per_sec}" 
-        return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_pkt_{packet_size_MB_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{self.transmission_rate_Gbit_per_sec}"
+            return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_fusbuf_{fusion_buffer_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{bw}" 
+        return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_pkt_{packet_size_MB_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{bw}"
 
 if __name__ == "__main__":
     s = SimulatorConfig(**{"qdisc": SchedulingDisc.FIFO})
