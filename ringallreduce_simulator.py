@@ -312,6 +312,7 @@ class HorovodSimulator():
         for layer, compute_time in self.fp_layers.items():
             next_event = Compute_Event(compute_time + curr_time, curr_time, "FP", layer, iteration, "done")
             heapq.heappush(self.event_queue, next_event)
+            self.gradient_received[layer] = False
             curr_time += compute_time
 
     # transmission queue: comprised of packet_id (iteration_idx, layer_idx, packet_idx)
@@ -384,21 +385,22 @@ class HorovodSimulator():
             self.curr_time = timestamp
             if event.name == "FP_computation_done":
                 # if self.PerfectPQ_set:
-                if self.config.qdisc == SchedulingDisc.PerfectPQ or self.config.qdisc == SchedulingDisc.RingAllReduce:
-                    if iteration != 0: # all FP events have been pushed for iteration 0
-                        # 2nd iteration onwards
-                        # restore previous FP compute status to not ready for next iteration
-                        if layer != 0: # first layer is execluded because it's always ready to compute once gradients are received
-                            self.previous_FP_layer_status[layer] = False            
-                        if layer < self.config.num_layers-1: # unblock the compute for next FP layer
-                            self.logger.debug(f"FP layer {layer} done, check if gradients received for {layer+1}")
-                            self.previous_FP_layer_status[layer+1] = True
-                            if self.gradient_received[layer+1]:
-                                self.logger.debug(f"gradient_received[{layer+1}]: {self.gradient_received[layer+1]}")
-                                next_event = Compute_Event(self.fp_layers[layer+1] + self.curr_time, self.curr_time, "FP", layer+1, iteration, "done")
-                                heapq.heappush(self.event_queue, next_event)
-                                # heapq.heappush(self.event_queue, [self.fp_layers[layer+1] + self.curr_time, "FP_computation_done", layer+1,  iteration])
-                        self.gradient_received[layer] = False
+                if self.config.iteration_barrier == False:
+                    if self.config.qdisc == SchedulingDisc.PerfectPQ or self.config.qdisc == SchedulingDisc.RingAllReduce:
+                        if iteration != 0: # all FP events have been pushed for iteration 0
+                            # 2nd iteration onwards
+                            # restore previous FP compute status to not ready for next iteration
+                            if layer != 0: # first layer is execluded because it's always ready to compute once gradients are received
+                                self.previous_FP_layer_status[layer] = False            
+                            if layer < self.config.num_layers-1: # unblock the compute for next FP layer
+                                self.logger.debug(f"FP layer {layer} done, check if gradients received for {layer+1}")
+                                self.previous_FP_layer_status[layer+1] = True
+                                if self.gradient_received[layer+1]:
+                                    self.logger.debug(f"gradient_received[{layer+1}]: {self.gradient_received[layer+1]}")
+                                    next_event = Compute_Event(self.fp_layers[layer+1] + self.curr_time, self.curr_time, "FP", layer+1, iteration, "done")
+                                    heapq.heappush(self.event_queue, next_event)
+                                    # heapq.heappush(self.event_queue, [self.fp_layers[layer+1] + self.curr_time, "FP_computation_done", layer+1,  iteration])
+                            self.gradient_received[layer] = False
                 # no need to handle self.FIFO_set case cause all FP events have been pushed once at the start of the new iteration 
                 if layer == self.config.num_layers - 1: #last layer
                     # self.record.append([self.curr_time, "Start BP"])
@@ -456,9 +458,9 @@ class HorovodSimulator():
                 layer = received_layers[0]
                 if self.config.iteration_barrier == True:
                     if sum(self.gradient_received.values()) == self.config.num_layers: # all gradients have received
-                        self.logger.debug(f'{self.curr_time},Start FP computation in new iteration in FIFO mode,{iteration}')
-                        self.record["Start FP computation in new iteration in FIFO mode"].append(Event("Start FP computation in new iteration in FIFO mode", self.curr_time, self.curr_time))
-                        self.enque_FP(self.curr_time, iteration)
+                        self.logger.debug(f'{self.curr_time},Start FP computation in new iteration in RingAllReduce mode,{iteration}')
+                        self.record["Start FP computation in new iteration in RingAllReduce mode"].append(Event("Start FP computation in new iteration in RingAllReduce mode", self.curr_time, self.curr_time))
+                        self.enque_FP(self.curr_time, iteration+1)
                     else:
                         self.logger.debug(f'Have not received all gradients')
                 else: # start FP whenever previous FP layer has finished computation and gradients have been received and updated this layer                 
