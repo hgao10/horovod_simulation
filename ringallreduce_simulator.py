@@ -223,6 +223,7 @@ class HorovodSimulator():
         self.ringallreduce = RingAllReduce(self.config.num_workers)
         self.ringallreduce.map_tensors(self.tensors, self.config.fusion_buffer_size_MB)
         self.ringallreduce_pq = PriorityQueue()
+        self.ringallreduce_fifo = collections.deque()
 
         # Test run specs
         self.config.TotalIteration = 2
@@ -315,37 +316,25 @@ class HorovodSimulator():
             self.gradient_received[layer] = False
             curr_time += compute_time
 
-    # transmission queue: comprised of packet_id (iteration_idx, layer_idx, packet_idx)
-    def transmit_tensor(self):
-        # if self.FIFO_set and self.transmission_queue:
-        if self.config.qdisc == SchedulingDisc.FIFO and self.transmission_queue:
-            packet = self.transmission_queue.popleft()
-        elif self.config.qdisc == SchedulingDisc.PerfectPQ and self.PerfectPQ_transmission_queue:
-            packet = heapq.heappop(self.PerfectPQ_transmission_queue)
-            self.logger.debug(f"Debug, pop packet off PerfectPQ_transmission_queue: {packet}")
-        elif self.config.qdisc == SchedulingDisc.RingAllReduce:
-            self.logger.debug(f"transmit tensor for RingallReduce")
-            self.logger.debug(f"self.ringallreduce_pq.empty {self.ringallreduce_pq.empty()}")
-            if not self.ringallreduce_pq.empty():
-                self.logger.debug(f"ringallreduce_pq is not empty: {self.ringallreduce_pq}")
-                fusion_reduce = self.ringallreduce_pq.get(block=False)
-                self.logger.debug(f"fusion_reduce.size {fusion_reduce.size}")
-                partion_size_MB = fusion_reduce.size/self.config.num_workers
-                self.logger.debug(f"going to send fusion reduce with priority {fusion_reduce.priority}, p size: {partion_size_MB}")
-                # assuming there is zero computation time to apply the partial gradients
-                # artifically included propagation delay to transmission time to indicate the next transmission can't start until gradients from 
-                # neighbors has been received which includes propagation time
-                one_iteration_transmit_partition_duration_ms = partion_size_MB * 8/self.config.transmission_rate_Gbit_per_sec + self.config.propagation_delay_ms
-                # receive_one_partition_time_ms = one_iteration_transmit_partition_duration_ms + self.config.propagation_delay_ms 
-                total_transmit_fusion_time_ms = 2 * (self.config.num_workers - 1) * one_iteration_transmit_partition_duration_ms 
-                
-                self.logger.debug(f"add next ringallreduce event {total_transmit_fusion_time_ms + self.curr_time}")
-                next_event = RingAllReduce_Event(total_transmit_fusion_time_ms + self.curr_time, self.curr_time, "done", fusion_reduce.iteration, fusion_reduce.priority )
-                
-                heapq.heappush(self.event_queue, next_event)
-                self.InTransit = True
-            self.logger.debug(f"transmit_tensor in RingAllReduce")
-            return 
+    def transmit_tensor_fusion(self, fusion_reduce):
+        self.logger.debug(f"fusion_reduce.size {fusion_reduce.size}")
+        partion_size_MB = fusion_reduce.size/self.config.num_workers
+        self.logger.debug(f"going to send fusion reduce with priority {fusion_reduce.priority}, p size: {partion_size_MB}")
+        # assuming there is zero computation time to apply the partial gradients
+        # artifically included propagation delay to transmission time to indicate the next transmission can't start until gradients from 
+        # neighbors has been received which includes propagation time
+        one_iteration_transmit_partition_duration_ms = partion_size_MB * 8/self.config.transmission_rate_Gbit_per_sec + self.config.propagation_delay_ms
+        # receive_one_partition_time_ms = one_iteration_transmit_partition_duration_ms + self.config.propagation_delay_ms 
+        total_transmit_fusion_time_ms = 2 * (self.config.num_workers - 1) * one_iteration_transmit_partition_duration_ms 
+        
+        self.logger.debug(f"add next ringallreduce event {total_transmit_fusion_time_ms + self.curr_time}")
+        next_event = RingAllReduce_Event(total_transmit_fusion_time_ms + self.curr_time, self.curr_time, "done", fusion_reduce.iteration, fusion_reduce.priority )        
+        heapq.heappush(self.event_queue, next_event)
+        self.InTransit = True
+        self.logger.debug(f"transmit_tensor in RingAllReduce")
+        return 
+
+    def transmit_packet(self, packet):
         # self.logger.debug(f'transimitting packet: iter:{packet.iteration_idx}, layer: {packet.layer_idx}, id: {packet.packet_idx}')
         next_event = Transmit_Event(self.tensor_transmittion_time_ms + self.curr_time, self.curr_time,"done", packet.iteration_idx, packet.layer_idx, packet.packet_idx)
         heapq.heappush(self.event_queue, next_event)
@@ -354,8 +343,28 @@ class HorovodSimulator():
                 packet.iteration_idx += 1
             next_event = Gradients_Event(self.TotalAllReduceTime + self.curr_time, self.curr_time,packet.iteration_idx, packet.layer_idx)
             heapq.heappush(self.event_queue, next_event)
-        self.InTransit = True
+        self.InTransit = True        
+        return 
 
+    # transmission queue: comprised of packet_id (iteration_idx, layer_idx, packet_idx)
+    def transmit_tensor(self):
+        # if self.FIFO_set and self.transmission_queue:
+        if self.config.qdisc == SchedulingDisc.FIFO and self.transmission_queue:
+            packet = self.transmission_queue.popleft()
+            self.transmit_packet(packet)
+        elif self.config.qdisc == SchedulingDisc.PerfectPQ and self.PerfectPQ_transmission_queue:
+            packet = heapq.heappop(self.PerfectPQ_transmission_queue)
+            self.logger.debug(f"Debug, pop packet off PerfectPQ_transmission_queue: {packet}")
+            self.transmit_packet(packet)
+        elif self.config.qdisc == SchedulingDisc.RingAllReducePQ and not self.ringallreduce_pq.empty():
+            self.logger.debug(f"transmit tensor for RingallReducePQ")
+            # if not self.ringallreduce_pq.empty():
+            self.logger.debug(f"ringallreduce_pq is not empty: {self.ringallreduce_pq}")
+            fusion_reduce = self.ringallreduce_pq.get(block=False)           
+            self.transmit_tensor_fusion(fusion_reduce)
+        elif self.config.qdisc == SchedulingDisc.RingAllReduceFIFO and self.ringallreduce_fifo:
+            fusion_reduce = self.ringallreduce_fifo.popleft()
+            self.transmit_tensor_fusion(fusion_reduce)
 
     def add_to_transmission_queue(self, num_packets, layer, iteration):
         for i in range(num_packets):
@@ -386,7 +395,7 @@ class HorovodSimulator():
             if event.name == "FP_computation_done":
                 # if self.PerfectPQ_set:
                 if self.config.iteration_barrier == False:
-                    if self.config.qdisc == SchedulingDisc.PerfectPQ or self.config.qdisc == SchedulingDisc.RingAllReduce:
+                    if self.config.qdisc == SchedulingDisc.PerfectPQ or self.config.qdisc == SchedulingDisc.RingAllReducePQ:
                         if iteration != 0: # all FP events have been pushed for iteration 0
                             # 2nd iteration onwards
                             # restore previous FP compute status to not ready for next iteration
@@ -412,7 +421,7 @@ class HorovodSimulator():
             elif (event.name == "BP_computation_done"):
                 # ready to send gradient
                 # look up which reduce operation this layer belongs to
-                if self.config.qdisc == SchedulingDisc.RingAllReduce:
+                if self.config.qdisc == SchedulingDisc.RingAllReducePQ or self.config.qdisc == SchedulingDisc.RingAllReduceFIFO:
                     if iteration == self.config.TotalIteration - 1 :
                         self.logger.debug(f'break out of while loop : iteration: {iteration}')
                         # exit while loops
@@ -423,7 +432,10 @@ class HorovodSimulator():
                     fusion_reduce.set_gradient_available(layer)
                     # if all tensors in the reduce operation are computed, move it to allreduce priority queue
                     if fusion_reduce.ready_to_be_sent():
-                        self.ringallreduce_pq.put(fusion_reduce)
+                        if self.config.qdisc == SchedulingDisc.RingAllReducePQ:
+                            self.ringallreduce_pq.put(fusion_reduce)
+                        else:
+                            self.ringallreduce_fifo.append(fusion_reduce)
                         fusion_reduce.clear_compute_status()
 
 
@@ -586,11 +598,16 @@ if __name__ == "__main__":
         compute_iteration_and_slack(horovod_simulator.record, horovod_simulator)
 
     
-    def test_ring_allreduce():
-        config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce,"num_layers":10, "propagation_delay_ms":5})
+    def test_ring_allreduce_pq():
+        config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReducePQ,"num_layers":10, "propagation_delay_ms":5})
         test_run(config)
     
+    def test_ring_allreduce_fifo():
+        # fifo explicitly has iteration barrier in place
+        config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduceFIFO,"num_layers":10, "propagation_delay_ms":5})
+        test_run(config)
+
     # test1()
-    test_ring_allreduce()    
+    test_ring_allreduce_fifo()    
 
 
