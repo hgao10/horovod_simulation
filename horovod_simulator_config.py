@@ -28,7 +28,7 @@ class SimulatorConfig():
         # smallest transmission unit tensor, could also be packet
         self.min_packet_per_layer = 1
         self.packet_size_MB = 0.44/self.min_packet_per_layer
-        self.num_layers = 50
+        self.num_layers = 100
         # total model is 100MB
         self.model_size_MB = 100 #MB 
         # self.min_layer_size_MB = 2 * self.model_size_MB / ( 9 * self.num_layers) # 0.44 if layer = 50
@@ -60,8 +60,8 @@ class SimulatorConfig():
         packet_size_MB_str = f"{self.packet_size_MB:.4f}".replace(".", "_")
         if self.qdisc == SchedulingDisc.RingAllReduceFIFO or self.qdisc == SchedulingDisc.RingAllReducePQ:
             fusion_buffer_str = f"{self.fusion_buffer_size_MB:.2f}".replace(".", "_")
-            return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_fusbuf_{fusion_buffer_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{bw}" 
-        return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_pkt_{packet_size_MB_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{bw}"
+            return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_fusbuf_{fusion_buffer_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{bw}_workers_{self.num_workers}" 
+        return f"qdisc_{self.qdisc.name}_iterbr_{self.iteration_barrier}_pkt_{packet_size_MB_str}_layer_{self.num_layers}_msize_{self.model_size_MB}_prop_delay_{prop_delay}_bw_{bw}_{self.num_workers}"
 
 if __name__ == "__main__":
     s = SimulatorConfig(**{"qdisc": SchedulingDisc.FIFO})
