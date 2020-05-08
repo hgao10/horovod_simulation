@@ -69,6 +69,7 @@ def run_test(simulator: horovod_event_simulator.HorovodSimulator) -> typing.Defa
 def build_timeline(record, horovod_simulator):
     timeline_event = collections.defaultdict(list)
     timeline_annotate = collections.defaultdict(list)
+    FP_start_time = collections.defaultdict(int)
     # calculate per_event duration
     for key, recs in horovod_simulator.record.items():
         if key == "FP_computation_done" or key == "Gradients_received":
@@ -77,6 +78,7 @@ def build_timeline(record, horovod_simulator):
                     if key == "FP_computation_done":
                         # timeline_annotate[key].append(f"FP[{event.layer}]")
                         timeline_event[key].append((event.start_time, event.duration))
+                        FP_start_time[event.layer] = event.start_time
                     
                     if key == "Gradients_received":
                         # key = key + f"[{event.layer}]"
@@ -95,6 +97,10 @@ def build_timeline(record, horovod_simulator):
                         timeline_annotate[key].append(f"L[{event.layer}]P[{event.packet_idx}]")
                     if key == "RingAllReduce_done":
                         timeline_event[key+f"[{event.layer}]"].append((event.start_time, event.duration))
+                        # The lastest time that this ringallreduce need to be completed to be non-blocking
+                        # when the data is needed - how long it takes to send the data
+                        start_time = FP_start_time[event.layer] - event.duration
+                        timeline_event[key+f"[{event.layer}]"].append((start_time, event.duration))
 
     return timeline_event    
 
@@ -320,7 +326,7 @@ config2 = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc
 config_FIFO = []
 config_PerfectPQ = []
 for network_bd in [1, 3]:
-    config_FIFO.append(SimulatorConfig(**{"transmission_rate_Gbit_per_sec": 1 }))
+    config_FIFO.append(SimulatorConfig(**{"transmission_rate_Gbit_per_sec": network_bd }))
     config_PerfectPQ.append(SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.PerfectPQ, "transmission_rate_Gbit_per_sec": network_bd}))
 
 def test_timeline(config, plt_block, savefig):
@@ -334,20 +340,132 @@ def test_ringallreduce_timeline(config, plt_block, savefig):
 
     horovod_simulator = ringallreduce_simulator.HorovodSimulator(config)
     r = run_test(horovod_simulator)
+    # print([x.allreduce_time for x in horovod_simulator.ringallreduce.reducelists.values()])
     timeline = build_timeline(r, horovod_simulator)
     plot_timeline(timeline, horovod_simulator, plt_block=plt_block, savefig=savefig)
+
+
+def test_ringallreduce_networkbw(block_, savefig_):
+    curr_time = str(datetime.datetime.now()).replace(" ","_")
+    curr_time = curr_time.split(".")[0]
+    # test inputs variables
+    num_runs = 20
+
+    base_network_bandwidth_Gbit_per_sec = 0.1 
+    bandwidth_increment_Gbit_per_sec = 0.1
+    # key: run_idx, value: network_bandwidth 
+    test_network_bandwidth = [base_network_bandwidth_Gbit_per_sec  + i * bandwidth_increment_Gbit_per_sec for i in range(num_runs)]
+
+    # key: qdisc mode, FIFO or PerfectPQ, values: records collected from simulation runs
+    iteration_result = collections.defaultdict(list)
+
+    modes = [SchedulingDisc.RingAllReducePQ, SchedulingDisc.RingAllReduceFIFO]
+    for mode in modes:
+        for network_bd in test_network_bandwidth:
+            if mode == SchedulingDisc.RingAllReducePQ:
+                config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReducePQ, "transmission_rate_Gbit_per_sec": network_bd }) 
+            else:
+                config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduceFIFO, "transmission_rate_Gbit_per_sec": network_bd }) 
+            simulator = ringallreduce_simulator.HorovodSimulator(config)
+
+            simulator.run()
+            iteration = ringallreduce_simulator.compute_iteration_time(simulator.record, simulator)
+            print(f"iteration: {iteration}")
+            iteration_result[mode].append(iteration)
+
+    # plot results
+    fig, ax = plt.subplots()
+    #This will create the bar graph for poulation
+    ind = np.arange(num_runs) # the x locations 
+    width = 0.35 # the width of the bars
+
+    rects1 = ax.bar(ind, iteration_result[SchedulingDisc.RingAllReduceFIFO], width)
+    rects2 = ax.bar(ind+width, iteration_result[SchedulingDisc.RingAllReducePQ], width)
+
+    ax.set_ylabel('Iteration time in ms')
+    ax.set_xticks(ind + width/2)
+    ax.set_xticklabels((f"{x:.1f}" for x in test_network_bandwidth))
+    ax.set_xlabel('Network Bandwidth in Gbit/s')
+    ax.legend((rects1[0], rects2[0]), ("RingAllReduceFIFO", "RingAllReducePerfectPQ"))
+    ax.set_title("Network bandwidth vs Iteration time")
+
+    autolabel(rects1, ax)
+    autolabel(rects2, ax)
+
+    fig.set_size_inches(18.5, 10.5)
+    
+    plt.show(block=block_)
+
+    # plot_name = f"Network_bandwidth_vs_iteration_time_default_layer_{str(default_num_layers)}_packet_size_{str(default_packet_size_MB)}_{timestamp_str}"
+    plot_name = f"Network_bandwidth_vs_iteration_time_{simulator.config}_{curr_time}"
+    print(f"config: {simulator.config}, curr_time: {curr_time}")
+    if block_ == False and savefig_ == True:
+        plt.savefig(f'./simulation_result/{plot_name}')
+
+def test_ringallreduce_slack(block_, savefig_):
+    # key: layer index, val: slack time
+    num_runs = 10
+    slack_result = []
+    base_network_bandwidth_Gbit_per_sec = 5 
+    bandwidth_increment_Gbit_per_sec = 5
+    # key: run_idx, value: network_bandwidth 
+    test_network_bandwidth = [base_network_bandwidth_Gbit_per_sec  + i * bandwidth_increment_Gbit_per_sec for i in range(num_runs)]
+    for network_bd in test_network_bandwidth:
+        config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReducePQ,"transmission_rate_Gbit_per_sec": network_bd})
+        simulator = ringallreduce_simulator.HorovodSimulator(config)
+        # set network bandwidth
+        simulator.run()
+        slack = ringallreduce_simulator.compute_slack_time_FIFO(simulator.record, simulator)
+        slack_result.append(slack)
+
+    # plot results
+    fig, ax = plt.subplots()
+    #This will create the bar graph for poulation
+    ind = np.arange(simulator.config.num_layers) # the x locations 
+    width = 0.08 # the width of the bars
+
+    rects = {}
+    for i in range(num_runs):
+        # print(f"slack_result_per_layer[{i}], {slack_result[i]} ")
+        print(f"slack_result {i}: {slack_result[i]}")
+        rects[i] = ax.bar(ind + i*width, slack_result[i].values(), width)
+
+    ax.set_ylabel('Slack time in ms')
+    ax.set_xticks(ind + width * num_runs/2)
+    ax.set_xticklabels(("L" + str(x) for x in range(simulator.config.num_layers)), fontsize=6)
+
+    # ax.legend((rects[i][0] for i in range(num_runs)), (str(x)+"Gbit/s" for x in test_network_bandwidth))
+    
+    ax.legend((rects[i][0] for i in range(num_runs)), (f"{x:.1f}"+"Gbit/s" for x in test_network_bandwidth))
+
+    ax.set_title(f"{config.qdisc.name} Network bandwidth vs Slack time")
+    fig.set_size_inches(23.5, 12.5)
+    plt.show(block=block_)
+
+    # TODO fix savefig, empty graphs saved somehow
+    plot_name = f"Network_bandwidth_vs_slack_time__layer_{simulator.config}_{curr_time}"
+    if not block_ and savefig_:
+        plt.savefig(f'./simulation_result/{plot_name}')
+
 
 if __name__ == "__main__":
     # test1()
     # test2()
     # test3()
-    # test_timeline(config_PerfectPQ[0], True, False)
+    # test_timeline(config_PerfectPQ[1], True, False)
+    # test_timeline(config_FIFO[1], True, False)
+
     # config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce,"num_layers":10, "propagation_delay_ms":5})
     # config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100, "transmission_rate_Gbit_per_sec": 1})
     # test_ringallreduce_timeline(config, True, False)
     # config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduce, "num_layers":100})
     # test_ringallreduce_timeline(config, True, False)
 
-    config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReducePQ, "num_layers":100, "transmission_rate_Gbit_per_sec": 0.1})
-    test_ringallreduce_timeline(config, False, True)
+    # config = SimulatorConfig(**{"iteration_barrier": True, "qdisc": SchedulingDisc.RingAllReduceFIFO, "num_layers":100, "transmission_rate_Gbit_per_sec": 5})
+    # config = SimulatorConfig(**{"iteration_barrier": False, "qdisc": SchedulingDisc.RingAllReducePQ, "num_layers":200, "transmission_rate_Gbit_per_sec": 5})
+
+    # test_ringallreduce_timeline(config, False, True)
+
+    test_ringallreduce_networkbw(True, False)
+    # test_ringallreduce_slack(False, True)
  
