@@ -107,6 +107,7 @@ class SingleReduce():
         self.gradient_computed_status = {}
         self.logger = get_logger("SingleReduce", "DEBUG")
         self.iteration = 0
+        self.allreduce_time = 0
     def add_tensor(self, tensor):
         self.tensors.append(tensor)
         self.size += tensor.size
@@ -123,7 +124,10 @@ class SingleReduce():
         if sum(self.gradient_computed_status.values()) == len(self.gradient_computed_status):
             return True
         return False
-    
+
+    def set_allreduce_time(self, time):
+        self.allreduce_time = time
+
     def clear_compute_status(self):
         for key in self.gradient_computed_status.keys():
             self.gradient_computed_status[key] = False
@@ -222,6 +226,7 @@ class HorovodSimulator():
         # initialize ring all reduce operations
         self.ringallreduce = RingAllReduce(self.config.num_workers)
         self.ringallreduce.map_tensors(self.tensors, self.config.fusion_buffer_size_MB)
+        self.calculate_single_ringallreduce_time(self.ringallreduce.reducelists)
         self.ringallreduce_pq = PriorityQueue()
         self.ringallreduce_fifo = collections.deque()
 
@@ -259,6 +264,12 @@ class HorovodSimulator():
         # TODO incorperate credit_size in non perfect priority queue situation where packets can only be pre-empted if there is enough credit left 
         self.config.credit_size = 1
 
+    def calculate_single_ringallreduce_time(self, reducelists):
+        for fusion_reduce in reducelists.values():
+            partion_size_MB = fusion_reduce.size/self.config.num_workers
+            one_iteration_transmit_partition_duration_ms = partion_size_MB * 8/self.config.transmission_rate_Gbit_per_sec + self.config.propagation_delay_ms
+            total_transmit_fusion_time_ms = 2 * (self.config.num_workers - 1) * one_iteration_transmit_partition_duration_ms 
+            fusion_reduce.set_allreduce_time(total_transmit_fusion_time_ms)
 
     def check_layer_size_in_packets(self):
         for layer, num in self.layer_size_in_packets.items():
@@ -287,6 +298,7 @@ class HorovodSimulator():
 
     def remove_iteration_barrier(self):
         self.config.iteration_barrier = False
+
     def calculate_layer_size(self):
         for layer in range(self.config.num_layers):
             if layer <= self.config.num_layers//2:
@@ -326,7 +338,7 @@ class HorovodSimulator():
         one_iteration_transmit_partition_duration_ms = partion_size_MB * 8/self.config.transmission_rate_Gbit_per_sec + self.config.propagation_delay_ms
         # receive_one_partition_time_ms = one_iteration_transmit_partition_duration_ms + self.config.propagation_delay_ms 
         total_transmit_fusion_time_ms = 2 * (self.config.num_workers - 1) * one_iteration_transmit_partition_duration_ms 
-        
+        self.logger.debug(f"total tranmist fusion time ms: {total_transmit_fusion_time_ms}")
         self.logger.debug(f"add next ringallreduce event {total_transmit_fusion_time_ms + self.curr_time}")
         next_event = RingAllReduce_Event(total_transmit_fusion_time_ms + self.curr_time, self.curr_time, "done", fusion_reduce.iteration, fusion_reduce.priority )        
         heapq.heappush(self.event_queue, next_event)
